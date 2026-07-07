@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { fallbackClinicSettings, formatWorkingScheduleSummary, getConsultationSlotError, isClinicOpenNow, normalizeWorkingSchedule, registrationSchema } from '@/lib/registration'
+import { fallbackClinicSettings, getConsultationSlotError, normalizeWorkingSchedule, registrationSchema } from '@/lib/registration'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,12 +107,6 @@ export async function POST(request: NextRequest) {
     const userClient = await createClient()
     const { data: { user } } = await userClient.auth.getUser()
 
-    if (!user && !isClinicOpenNow(settings)) {
-      return errorResponse(
-        `Registration is closed. Working hours: ${formatWorkingScheduleSummary(settings) || 'Please contact reception'}.`,
-        403
-      )
-    }
 
     if (!user) {
       const slotError = getConsultationSlotError(settings, input.consultation_date, input.consultation_time)

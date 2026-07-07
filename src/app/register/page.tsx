@@ -348,9 +348,9 @@ export default function RegisterPage() {
               <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
                 <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
                 <div>
-                  <p className="text-sm font-bold text-red-800">Registration is currently closed</p>
+                  <p className="text-sm font-bold text-red-800">Reception is currently closed</p>
                   <p className="mt-0.5 text-xs leading-5 text-red-700">
-                    Tap View timings to check working hours, or contact reception for help.
+                    You can still book any available future appointment slot.
                   </p>
                 </div>
               </div>
@@ -621,7 +621,7 @@ export default function RegisterPage() {
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">Step 3 of 3</p>
                       <h3 className="mt-1 text-2xl font-bold text-slate-900">Appointment</h3>
-                      <p className="text-slate-600 text-sm">Pick an available date and time. We will generate your token after submission.</p>
+                      <p className="text-slate-600 text-sm">Pick an available future date and time. Current reception status does not stop future booking.</p>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -728,7 +728,7 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       onClick={handleFinalSubmit}
-                      disabled={isSubmitting || configLoading || !clinicOpen || availableTimes.length === 0 || Boolean(slotError) || !appointmentReviewed}
+                      disabled={isSubmitting || configLoading || availableTimes.length === 0 || Boolean(slotError) || !appointmentReviewed}
                       className="inline-flex h-11 min-w-36 items-center justify-center gap-2 rounded-full bg-emerald-600 px-5 text-sm font-bold text-white shadow-sm transition-all hover:bg-emerald-700 disabled:opacity-60 disabled:hover:bg-emerald-600 active:scale-95"
                     >
                       {isSubmitting ? (
