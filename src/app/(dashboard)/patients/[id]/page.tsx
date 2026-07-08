@@ -34,7 +34,14 @@ import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/context/AuthContext'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import * as dataService from '@/lib/dataService'
-import type { LedgerPaymentMethod, Patient, PatientPackage, PaymentTransaction, Visit } from '@/types'
+import type {
+  LedgerPaymentMethod,
+  Patient,
+  PatientPackage,
+  PaymentTransaction,
+  Visit,
+  WhatsAppNotificationStatus,
+} from '@/types'
 
 interface DetailItemProps {
   label: string
@@ -122,6 +129,12 @@ function formatTimeValue(value: string | null | undefined): string {
 
 function getPaymentMethodLabel(method: LedgerPaymentMethod) {
   return method === 'cash' ? 'Cash' : 'Online'
+}
+
+function getWhatsAppBadgeClass(status: WhatsAppNotificationStatus) {
+  if (status === 'sent') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  if (status === 'failed') return 'bg-rose-50 text-rose-700 border-rose-200'
+  return 'bg-amber-50 text-amber-700 border-amber-200'
 }
 
 function DetailItem({ label, value, icon: Icon, tone = 'slate' }: DetailItemProps) {
@@ -641,6 +654,15 @@ export default function PatientProfilePage() {
                           {payment.is_correction && (
                             <span className="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700">
                               Correction
+                            </span>
+                          )}
+                          {payment.whatsapp_notification ? (
+                            <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${getWhatsAppBadgeClass(payment.whatsapp_notification.status)}`}>
+                              WhatsApp: {payment.whatsapp_notification.status}
+                            </span>
+                          ) : (
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-500">
+                              WhatsApp: not logged
                             </span>
                           )}
                         </div>

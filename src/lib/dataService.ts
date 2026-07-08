@@ -20,6 +20,7 @@ import type {
   PatientPackage,
   PaymentTransaction,
   LedgerPaymentMethod,
+  WhatsAppNotification,
 } from '../types'
 import type { Database } from '../types/database'
 
@@ -348,7 +349,38 @@ export async function getPaymentHistory(filters: PaymentHistoryFilters): Promise
 
   const { data, error } = await query
   if (error) throw error
-  return (data ?? []) as PaymentTransaction[]
+  return attachWhatsAppNotifications((data ?? []) as PaymentTransaction[])
+}
+
+async function attachWhatsAppNotifications(payments: PaymentTransaction[]): Promise<PaymentTransaction[]> {
+  const patientIds = Array.from(new Set(payments.map((payment) => payment.patient_id).filter(Boolean)))
+  if (patientIds.length === 0) return payments
+
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('whatsapp_notifications')
+    .select('*')
+    .in('patient_id', patientIds)
+    .eq('notification_type', 'payment_receipt')
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+
+  const notificationsByPaymentId = new Map<string, WhatsAppNotification>()
+  for (const notification of (data ?? []) as WhatsAppNotification[]) {
+    const paymentTransactionId = typeof notification.payload?.payment_transaction_id === 'string'
+      ? notification.payload.payment_transaction_id
+      : null
+
+    if (paymentTransactionId && !notificationsByPaymentId.has(paymentTransactionId)) {
+      notificationsByPaymentId.set(paymentTransactionId, notification)
+    }
+  }
+
+  return payments.map((payment) => ({
+    ...payment,
+    whatsapp_notification: notificationsByPaymentId.get(payment.id) ?? null,
+  }))
 }
 
 export async function createPatientPackage(payload: CreatePatientPackagePayload): Promise<PatientPackage> {

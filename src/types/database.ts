@@ -250,6 +250,48 @@ export interface Database {
           },
         ]
       }
+      whatsapp_notifications: {
+        Row: {
+          id: string
+          patient_id: string
+          notification_type:
+            | 'registration_confirmation'
+            | 'payment_receipt'
+            | 'session_reminder'
+            | 'follow_up'
+            | 'portal_link'
+          payload: Json
+          status: 'queued' | 'sent' | 'failed'
+          meta_message_id: string | null
+          error_message: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          notification_type:
+            | 'registration_confirmation'
+            | 'payment_receipt'
+            | 'session_reminder'
+            | 'follow_up'
+            | 'portal_link'
+          payload: Json
+          status?: 'queued' | 'sent' | 'failed'
+          meta_message_id?: string | null
+          error_message?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['whatsapp_notifications']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'whatsapp_notifications_patient_id_fkey'
+            columns: ['patient_id']
+            isOneToOne: false
+            referencedRelation: 'patients'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       charge_presets: Table<{
         id: string
         name: string

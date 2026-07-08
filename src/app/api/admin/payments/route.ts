@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { sendWhatsAppNotification } from '@/lib/whatsapp'
 
 export const dynamic = 'force-dynamic'
 
@@ -150,7 +151,28 @@ export async function POST(request: NextRequest) {
     const paymentResult = Array.isArray(rpcData) ? rpcData[0] : rpcData
     if (!paymentResult?.payment_transaction_id) throw new Error('Payment RPC did not return a payment result')
 
-    return jsonResponse({ payment: paymentResult }, 201)
+    const whatsapp = await sendWhatsAppNotification({
+      patientId: input.patient_id,
+      notificationType: 'payment_receipt',
+      templateName: process.env.PAYMENT_RECEIPT_TEMPLATE_NAME,
+      payload: {
+        event_type: 'payment_recorded',
+        payment_transaction_id: paymentResult.payment_transaction_id,
+        patient_package_id: paymentResult.patient_package_id,
+        visit_id: input.visit_id || null,
+        amount: input.amount,
+        payment_method: input.payment_method,
+        paid_total: paymentResult.paid_total,
+        balance: paymentResult.balance,
+      },
+      bodyParameters: [
+        input.amount,
+        input.payment_method,
+        paymentResult.balance ?? 'N/A',
+      ],
+    })
+
+    return jsonResponse({ payment: paymentResult, whatsapp }, 201)
   } catch (error) {
     console.error('Payment recording failed', error instanceof Error ? error.message : 'Unknown error')
     return jsonResponse({ error: 'Unable to record payment' }, 503)

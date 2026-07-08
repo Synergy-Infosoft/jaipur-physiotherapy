@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { sendWhatsAppNotification } from '@/lib/whatsapp'
 
 export const dynamic = 'force-dynamic'
 
@@ -148,7 +149,28 @@ export async function POST(request: NextRequest) {
     const packageRow = Array.isArray(rpcData) ? rpcData[0] : rpcData
     if (!packageRow?.id) throw new Error('Package RPC did not return a package')
 
-    return jsonResponse({ package: packageRow }, 201)
+    const whatsapp = await sendWhatsAppNotification({
+      patientId: packageRow.patient_id,
+      notificationType: 'payment_receipt',
+      templateName: process.env.PACKAGE_CREATED_TEMPLATE_NAME,
+      payload: {
+        event_type: 'package_created',
+        patient_package_id: packageRow.id,
+        visit_id: packageRow.visit_id,
+        package_name: packageRow.package_name,
+        total_sessions: packageRow.total_sessions,
+        quoted_amount: packageRow.quoted_amount,
+        balance: packageRow.quoted_amount,
+      },
+      bodyParameters: [
+        packageRow.package_name,
+        packageRow.total_sessions,
+        packageRow.quoted_amount,
+        packageRow.quoted_amount,
+      ],
+    })
+
+    return jsonResponse({ package: packageRow, whatsapp }, 201)
   } catch (error) {
     console.error('Package creation failed', error instanceof Error ? error.message : 'Unknown error')
     return jsonResponse({ error: 'Unable to create package' }, 503)

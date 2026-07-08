@@ -10,6 +10,15 @@ export type LedgerPaymentMethod = 'cash' | 'online'
 
 export type PackageStatus = 'active' | 'completed' | 'cancelled'
 
+export type WhatsAppNotificationType =
+  | 'registration_confirmation'
+  | 'payment_receipt'
+  | 'session_reminder'
+  | 'follow_up'
+  | 'portal_link'
+
+export type WhatsAppNotificationStatus = 'queued' | 'sent' | 'failed'
+
 export interface Profile {
   id: string
   full_name: string
@@ -98,6 +107,7 @@ export interface PaymentTransaction {
   created_at: string
   patient_package?: PatientPackage | null
   visit?: Visit | null
+  whatsapp_notification?: WhatsAppNotification | null
 }
 
 export interface PatientPackage {
@@ -114,6 +124,17 @@ export interface PatientPackage {
   balance?: number
   payments?: PaymentTransaction[]
   visit?: Visit | null
+}
+
+export interface WhatsAppNotification {
+  id: string
+  patient_id: string
+  notification_type: WhatsAppNotificationType
+  payload: Record<string, unknown>
+  status: WhatsAppNotificationStatus
+  meta_message_id: string | null
+  error_message: string | null
+  created_at: string
 }
 
 export interface WorkingHoursSlot {
