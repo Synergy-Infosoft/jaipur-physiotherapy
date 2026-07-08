@@ -799,7 +799,7 @@ export default function RegisterPage() {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         @keyframes fadeIn {
           from {
             opacity: 0;
