@@ -13,7 +13,7 @@ export interface Database {
       profiles: Table<{
         id: string
         full_name: string
-        role: 'admin' | 'receptionist' | 'doctor'
+        role: 'admin' | 'receptionist' | 'doctor' | 'therapist' | 'follow_up_agent'
         created_at: string
       }>
       doctors: Table<{
@@ -145,6 +145,111 @@ export interface Database {
           },
         ]
       }
+      patient_packages: {
+        Row: {
+          id: string
+          patient_id: string
+          visit_id: string | null
+          package_name: string
+          total_sessions: number
+          quoted_amount: number
+          created_by: string | null
+          status: 'active' | 'completed' | 'cancelled'
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          visit_id?: string | null
+          package_name: string
+          total_sessions: number
+          quoted_amount: number
+          created_by?: string | null
+          status?: 'active' | 'completed' | 'cancelled'
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['patient_packages']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'patient_packages_patient_id_fkey'
+            columns: ['patient_id']
+            isOneToOne: false
+            referencedRelation: 'patients'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'patient_packages_visit_id_fkey'
+            columns: ['visit_id']
+            isOneToOne: false
+            referencedRelation: 'visits'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'patient_packages_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      payment_transactions: {
+        Row: {
+          id: string
+          patient_id: string
+          patient_package_id: string | null
+          visit_id: string | null
+          amount: number
+          payment_method: 'cash' | 'online'
+          recorded_by: string | null
+          is_correction: boolean
+          correction_reason: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          patient_package_id?: string | null
+          visit_id?: string | null
+          amount: number
+          payment_method: 'cash' | 'online'
+          recorded_by?: string | null
+          is_correction?: boolean
+          correction_reason?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['payment_transactions']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'payment_transactions_patient_id_fkey'
+            columns: ['patient_id']
+            isOneToOne: false
+            referencedRelation: 'patients'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'payment_transactions_patient_package_id_fkey'
+            columns: ['patient_package_id']
+            isOneToOne: false
+            referencedRelation: 'patient_packages'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'payment_transactions_visit_id_fkey'
+            columns: ['visit_id']
+            isOneToOne: false
+            referencedRelation: 'visits'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'payment_transactions_recorded_by_fkey'
+            columns: ['recorded_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       charge_presets: Table<{
         id: string
         name: string
@@ -235,6 +340,41 @@ export interface Database {
           paid_at: string | null
           created_at: string
           updated_at: string
+        }>
+      }
+      create_patient_package_atomic: {
+        Args: {
+          p_patient_id: string
+          p_visit_id?: string | null
+          p_package_name?: string | null
+          p_total_sessions?: number | null
+          p_quoted_amount?: number | null
+        }
+        Returns: Array<{
+          id: string
+          patient_id: string
+          visit_id: string | null
+          package_name: string
+          total_sessions: number
+          quoted_amount: number
+          created_by: string | null
+          status: 'active' | 'completed' | 'cancelled'
+          created_at: string
+        }>
+      }
+      record_payment_atomic: {
+        Args: {
+          p_patient_id: string
+          p_patient_package_id?: string | null
+          p_visit_id?: string | null
+          p_amount?: number | null
+          p_payment_method?: 'cash' | 'online' | null
+        }
+        Returns: Array<{
+          payment_transaction_id: string
+          patient_package_id: string | null
+          paid_total: number
+          balance: number | null
         }>
       }
     }

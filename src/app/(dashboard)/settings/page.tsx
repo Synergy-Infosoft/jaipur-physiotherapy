@@ -145,12 +145,16 @@ function formatStaffCreatedAt(value: string | null | undefined) {
 function getRoleLabel(role: UserRole) {
   if (role === 'admin') return 'Admin'
   if (role === 'doctor') return 'Doctor'
+  if (role === 'therapist') return 'Therapist'
+  if (role === 'follow_up_agent') return 'Follow-up agent'
   return 'Receptionist'
 }
 
 function getRoleBadgeClass(role: UserRole) {
   if (role === 'admin') return 'bg-amber-50 text-amber-700 border-amber-200'
   if (role === 'doctor') return 'bg-violet-50 text-violet-700 border-violet-200'
+  if (role === 'therapist') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  if (role === 'follow_up_agent') return 'bg-cyan-50 text-cyan-700 border-cyan-200'
   return 'bg-blue-50 text-blue-700 border-blue-200'
 }
 

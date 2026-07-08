@@ -7,7 +7,20 @@ import { createClient } from './supabase/client'
 import { format } from 'date-fns'
 import { normalizeWorkingSchedule } from './registration'
 import { defaultBrandTheme, normalizeBrandTheme } from './brandTheme'
-import type { Patient, Visit, Invoice, Doctor, ChargePreset, LineItem, DashboardStats, ClinicSettings, UserRole } from '../types'
+import type {
+  Patient,
+  Visit,
+  Invoice,
+  Doctor,
+  ChargePreset,
+  LineItem,
+  DashboardStats,
+  ClinicSettings,
+  UserRole,
+  PatientPackage,
+  PaymentTransaction,
+  LedgerPaymentMethod,
+} from '../types'
 import type { Database } from '../types/database'
 
 export interface SelfRegisterPayload {
@@ -38,6 +51,34 @@ export interface CreateStaffUserPayload {
   email: string
   password: string
   role: Extract<UserRole, 'receptionist' | 'doctor'>
+}
+
+export interface CreatePatientPackagePayload {
+  patient_id: string
+  visit_id?: string | null
+  package_name: string
+  total_sessions: number
+  quoted_amount: number
+}
+
+export interface RecordPaymentPayload {
+  patient_id: string
+  patient_package_id?: string | null
+  visit_id?: string | null
+  amount: number
+  payment_method: LedgerPaymentMethod
+}
+
+export interface PaymentHistoryFilters {
+  patientId?: string
+  packageId?: string
+}
+
+export interface RecordPaymentResult {
+  payment_transaction_id: string
+  patient_package_id: string | null
+  paid_total: number
+  balance: number | null
 }
 
 // ─── Patients ─────────────────────────────────────────────────────────────────
@@ -256,6 +297,89 @@ export async function updateInvoice(id: string, updates: Partial<Invoice>): Prom
 }
 
 // ─── Doctors ──────────────────────────────────────────────────────────────────
+
+function withComputedPackageBalances(
+  packages: PatientPackage[],
+  payments: PaymentTransaction[]
+): PatientPackage[] {
+  return packages.map((patientPackage) => {
+    const packagePayments = payments.filter(
+      (payment) => payment.patient_package_id === patientPackage.id
+    )
+    const paidTotal = packagePayments.reduce((total, payment) => total + Number(payment.amount), 0)
+
+    return {
+      ...patientPackage,
+      paid_total: paidTotal,
+      balance: Number(patientPackage.quoted_amount) - paidTotal,
+      payments: packagePayments,
+    }
+  })
+}
+
+export async function getPatientPackages(patientId: string): Promise<PatientPackage[]> {
+  const supabase = createClient()
+  const [{ data: packages, error: packagesError }, payments] = await Promise.all([
+    supabase
+      .from('patient_packages')
+      .select('*, visit:visits(*)')
+      .eq('patient_id', patientId)
+      .order('created_at', { ascending: false }),
+    getPaymentHistory({ patientId }),
+  ])
+
+  if (packagesError) throw packagesError
+  return withComputedPackageBalances((packages ?? []) as PatientPackage[], payments)
+}
+
+export async function getPaymentHistory(filters: PaymentHistoryFilters): Promise<PaymentTransaction[]> {
+  if (!filters.patientId && !filters.packageId) {
+    throw new Error('Patient id or package id is required to load payment history')
+  }
+
+  const supabase = createClient()
+  let query = supabase
+    .from('payment_transactions')
+    .select('*, patient_package:patient_packages(*), visit:visits(*)')
+    .order('created_at', { ascending: false })
+
+  if (filters.packageId) query = query.eq('patient_package_id', filters.packageId)
+  if (filters.patientId) query = query.eq('patient_id', filters.patientId)
+
+  const { data, error } = await query
+  if (error) throw error
+  return (data ?? []) as PaymentTransaction[]
+}
+
+export async function createPatientPackage(payload: CreatePatientPackagePayload): Promise<PatientPackage> {
+  const response = await fetch('/api/admin/packages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to create patient package')
+  }
+
+  return result.package as PatientPackage
+}
+
+export async function recordPayment(payload: RecordPaymentPayload): Promise<RecordPaymentResult> {
+  const response = await fetch('/api/admin/payments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to record payment')
+  }
+
+  return result.payment as RecordPaymentResult
+}
 
 export async function getDoctors(): Promise<Doctor[]> {
   const supabase = createClient()

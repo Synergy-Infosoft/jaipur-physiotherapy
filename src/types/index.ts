@@ -1,10 +1,14 @@
-export type UserRole = 'admin' | 'receptionist' | 'doctor'
+export type UserRole = 'admin' | 'receptionist' | 'doctor' | 'therapist' | 'follow_up_agent'
 
 export type VisitStatus = 'pending' | 'completed' | 'cancelled'
 
 export type PaymentStatus = 'pending' | 'paid_cash' | 'paid_online'
 
 export type PaymentMethod = 'cash' | 'online_upi' | null
+
+export type LedgerPaymentMethod = 'cash' | 'online'
+
+export type PackageStatus = 'active' | 'completed' | 'cancelled'
 
 export interface Profile {
   id: string
@@ -79,6 +83,37 @@ export interface Invoice {
   updated_at?: string
   visit?: Visit
   patient?: Patient
+}
+
+export interface PaymentTransaction {
+  id: string
+  patient_id: string
+  patient_package_id: string | null
+  visit_id: string | null
+  amount: number
+  payment_method: LedgerPaymentMethod
+  recorded_by: string | null
+  is_correction: boolean
+  correction_reason: string | null
+  created_at: string
+  patient_package?: PatientPackage | null
+  visit?: Visit | null
+}
+
+export interface PatientPackage {
+  id: string
+  patient_id: string
+  visit_id: string | null
+  package_name: string
+  total_sessions: number
+  quoted_amount: number
+  created_by: string | null
+  status: PackageStatus
+  created_at: string
+  paid_total?: number
+  balance?: number
+  payments?: PaymentTransaction[]
+  visit?: Visit | null
 }
 
 export interface WorkingHoursSlot {

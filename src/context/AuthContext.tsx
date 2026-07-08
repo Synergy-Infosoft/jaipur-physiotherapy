@@ -3,11 +3,12 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
+import type { UserRole } from "@/types";
 
 interface Profile {
   id: string;
   full_name: string;
-  role: "admin" | "receptionist" | "doctor";
+  role: UserRole;
   email?: string;
 }
 
