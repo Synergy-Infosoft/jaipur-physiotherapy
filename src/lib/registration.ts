@@ -13,6 +13,8 @@ export const referralSources = [
 
 export const visitTypes = ['first_visit', 'follow_up'] as const
 
+export const registrationPaymentMethods = ['cash', 'online'] as const
+
 export const registrationSchema = z.object({
   full_name: z.string().trim().min(2, 'Please enter your full name').max(120),
   father_name: z.string().trim().max(120).optional(),
@@ -26,6 +28,9 @@ export const registrationSchema = z.object({
   address: z.string().trim().max(500).optional(),
   referral_source: z.union([z.enum(referralSources), z.literal('')]).optional(),
   visit_type: z.enum(visitTypes),
+  payment_method: z.enum(registrationPaymentMethods, {
+    error: 'Please select cash or online payment',
+  }),
   consultation_date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Please select a consultation date')

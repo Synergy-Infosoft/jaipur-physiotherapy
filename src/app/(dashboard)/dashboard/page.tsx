@@ -11,6 +11,8 @@ import {
   Plus,
   ChevronRight,
   Stethoscope,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -20,10 +22,71 @@ import { AddVisitDialog } from '@/components/visits/AddVisitDialog'
 import { ConfirmDialog } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/context/AuthContext'
-import { formatCurrency, formatTime } from '@/lib/utils'
+import { formatCurrency, formatDateTime, formatTime } from '@/lib/utils'
 import * as dataService from '@/lib/dataService'
-import type { Visit, DashboardStats, Doctor } from '@/types'
+import type { Visit, DashboardStats, Doctor, PaymentMethodOverrideVisit } from '@/types'
 import { StatsCardSkeleton } from '@/components/shared/LoadingSkeleton'
+
+function RecentPaymentMethodOverrides() {
+  const [overrides, setOverrides] = useState<PaymentMethodOverrideVisit[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const loadOverrides = useCallback(async () => {
+    try {
+      const data = await dataService.getRecentPaymentMethodOverrides(5)
+      setOverrides(data)
+    } catch {
+      // silently fail
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadOverrides()
+  }, [loadOverrides])
+
+  if (loading) return null
+  if (overrides.length === 0) return null
+
+  return (
+    <div className="card overflow-hidden mt-6">
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-amber-600" />
+          <h2 className="text-base font-semibold text-slate-900">Recent Payment Method Overrides</h2>
+        </div>
+        <button onClick={loadOverrides} className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1">
+          <RefreshCw className="w-3 h-3" /> Refresh
+        </button>
+      </div>
+      <div className="divide-y divide-slate-50">
+        {overrides.map((visit) => (
+          <div key={visit.id} className="px-5 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">{visit.patient?.full_name || 'Unknown'}</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Token #{visit.token_number} · {formatDateTime(visit.updated_at || visit.created_at)}
+              </p>
+              {visit.payment_method_override_reason && (
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Reason: {visit.payment_method_override_reason}
+                </p>
+              )}
+            </div>
+            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+              visit.payment_method === 'cash'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-blue-50 text-blue-700 border-blue-200'
+            }`}>
+              {visit.payment_method === 'cash' ? 'Cash' : 'Online'}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -173,7 +236,7 @@ export default function DashboardPage() {
         {/* Today's Queue */}
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-slate-900">Today&apos;s Queue</h2>
+            <h2 className="text-base font-semibold text-slate-900">Today{"'"}s Queue</h2>
             <button
               onClick={() => router.push('/visits')}
               className="text-xs text-[var(--primary)] hover:underline flex items-center gap-1"
@@ -281,6 +344,9 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* Recent Overrides — admin only */}
+        {profile?.role === 'admin' && <RecentPaymentMethodOverrides />}
       </div>
 
       {/* Modals */}

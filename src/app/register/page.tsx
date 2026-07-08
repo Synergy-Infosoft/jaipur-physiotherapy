@@ -23,6 +23,9 @@ const schema = z.object({
   address: z.string().optional(),
   referral_source: z.string().optional(),
   visit_type: z.enum(['first_visit', 'follow_up']),
+  payment_method: z.enum(['cash', 'online'], {
+    error: 'Please select cash or online payment',
+  }),
   consultation_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Please select a consultation date'),
   consultation_time: z.string().regex(/^\d{2}:\d{2}$/, 'Please select a consultation time'),
 })
@@ -176,7 +179,7 @@ export default function RegisterPage() {
     if (currentStep === 1) {
       fieldsToValidate = ['full_name', 'age', 'gender', 'phone']
     } else if (currentStep === 2) {
-      fieldsToValidate = ['visit_type', 'chief_complaint']
+      fieldsToValidate = ['visit_type', 'chief_complaint', 'payment_method']
     } else if (currentStep === 3) {
       fieldsToValidate = ['consultation_date', 'consultation_time']
     }
@@ -217,6 +220,7 @@ export default function RegisterPage() {
         father_name: data.father_name,
         referral_source: data.referral_source,
         visit_type: data.visit_type,
+        payment_method: data.payment_method,
         consultation_date: data.consultation_date,
         consultation_time: data.consultation_time,
       })
@@ -612,8 +616,38 @@ export default function RegisterPage() {
                         ))}
                       </select>
                     </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-900 mb-2">
+                        Payment Method <span className="text-red-500">*</span>
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {[
+                          { value: 'cash', label: 'Cash', description: 'Pay at reception' },
+                          { value: 'online', label: 'Online', description: 'UPI / Card / Net Banking' },
+                        ].map((option) => (
+                          <label
+                            key={option.value}
+                            className="relative flex min-h-20 cursor-pointer flex-col justify-center rounded-xl border-2 border-slate-200 bg-slate-50 p-4 transition-all hover:border-[var(--primary)]/50 has-[:checked]:border-[var(--primary)] has-[:checked]:bg-[var(--primary-light)]"
+                          >
+                            <input
+                              type="radio"
+                              value={option.value}
+                              className="sr-only"
+                              {...register('payment_method')}
+                            />
+                            <span className="font-semibold text-slate-900">{option.label}</span>
+                            <span className="mt-1 text-xs text-slate-500">{option.description}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {errors.payment_method && (
+                        <p className="mt-1.5 text-xs text-red-600">{errors.payment_method.message}</p>
+                      )}
+                    </div>
                   </div>
                 )}
+REPLACE
 
                 {/* STEP 3: Appointment */}
                 {currentStep === 3 && (

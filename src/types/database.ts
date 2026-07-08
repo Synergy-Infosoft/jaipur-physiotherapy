@@ -51,6 +51,10 @@ export interface Database {
           notes: string | null
           prescription: string | null
           registered_by: 'self' | 'receptionist'
+          payment_method: 'cash' | 'online' | null
+          payment_method_locked_at: string | null
+          payment_method_override_by: string | null
+          payment_method_override_reason: string | null
           confirmation_token: string
           created_at: string
           updated_at: string
@@ -69,6 +73,10 @@ export interface Database {
           notes?: string | null
           prescription?: string | null
           registered_by?: 'self' | 'receptionist'
+          payment_method?: 'cash' | 'online' | null
+          payment_method_locked_at?: string | null
+          payment_method_override_by?: string | null
+          payment_method_override_reason?: string | null
           confirmation_token?: string
           created_at?: string
           updated_at?: string
@@ -355,6 +363,7 @@ export interface Database {
           p_consultation_time?: string
           p_registered_by?: string
           p_request_hash?: string | null
+          p_payment_method?: 'cash' | 'online' | null
         }
         Returns: Array<{
           token_number: number
@@ -362,6 +371,23 @@ export interface Database {
           patient_name: string
           confirmation_token: string
           duplicate_registration: boolean
+        }>
+      }
+      override_payment_method_atomic: {
+        Args: {
+          p_visit_id: string
+          p_new_method: 'cash' | 'online'
+          p_reason: string
+          p_admin_id: string
+        }
+        Returns: Array<{
+          id: string
+          patient_id: string
+          payment_method: 'cash' | 'online'
+          payment_method_locked_at: string
+          payment_method_override_by: string
+          payment_method_override_reason: string
+          updated_at: string
         }>
       }
       create_invoice_for_visit: {

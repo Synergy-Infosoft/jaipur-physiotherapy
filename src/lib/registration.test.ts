@@ -16,6 +16,7 @@ describe('registrationSchema', () => {
     phone: '98765 43210',
     chief_complaint: 'Fever for two days',
     visit_type: 'first_visit' as const,
+    payment_method: 'cash' as const,
     consultation_date: '2026-06-23',
     consultation_time: '10:30',
   }
@@ -32,6 +33,15 @@ describe('registrationSchema', () => {
       phone: '123',
       chief_complaint: '',
     })
+    expect(result.success).toBe(false)
+  })
+
+  it('requires a payment method selection', () => {
+    const result = registrationSchema.safeParse({
+      ...validInput,
+      payment_method: undefined,
+    })
+
     expect(result.success).toBe(false)
   })
 

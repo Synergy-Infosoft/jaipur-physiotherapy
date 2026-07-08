@@ -30,6 +30,7 @@ import {
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/context/AuthContext'
 import { formatDate, formatDateTime } from '@/lib/utils'
@@ -156,6 +157,7 @@ export default function PatientProfilePage() {
   const router = useRouter()
   const toast = useToast()
   const { profile } = useAuth()
+  const isAdmin = profile?.role === 'admin'
   const canManageBilling = profile?.role === 'admin' || profile?.role === 'receptionist'
   const id = params?.id as string
 
@@ -166,6 +168,10 @@ export default function PatientProfilePage() {
   const [loading, setLoading] = useState(true)
   const [savingPayment, setSavingPayment] = useState(false)
   const [form, setForm] = useState<PackagePaymentForm>(emptyPackagePaymentForm)
+  const [overrideVisitId, setOverrideVisitId] = useState<string | null>(null)
+  const [overridePaymentMethod, setOverridePaymentMethod] = useState<LedgerPaymentMethod>('cash')
+  const [overrideReason, setOverrideReason] = useState('')
+  const [savingOverride, setSavingOverride] = useState(false)
 
   const loadPatientLedger = async (patientId: string) => {
     const [packagesData, paymentData] = await Promise.all([
@@ -280,6 +286,43 @@ export default function PatientProfilePage() {
       toast.error(error instanceof Error ? error.message : 'Unable to save package payment')
     } finally {
       setSavingPayment(false)
+    }
+  }
+
+  const openOverrideDialog = (visit: Visit) => {
+    setOverrideVisitId(visit.id)
+    setOverridePaymentMethod(visit.payment_method ?? 'cash')
+    setOverrideReason('')
+  }
+
+  const handleOverrideSubmit = async () => {
+    if (!overrideVisitId) return
+    if (overrideReason.trim().length < 5) {
+      toast.error('Override reason must be at least 5 characters')
+      return
+    }
+
+    setSavingOverride(true)
+    try {
+      const updatedVisit = await dataService.overrideVisitPaymentMethod({
+        visit_id: overrideVisitId,
+        payment_method: overridePaymentMethod,
+        reason: overrideReason.trim(),
+      })
+
+      setVisits((current) => current.map((visit) => visit.id === overrideVisitId ? {
+        ...visit,
+        payment_method: updatedVisit.payment_method,
+        payment_method_override_by: updatedVisit.payment_method_override_by,
+        payment_method_override_reason: updatedVisit.payment_method_override_reason,
+      } : visit))
+      setOverrideVisitId(null)
+      setOverrideReason('')
+      toast.success('Payment method updated')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to override payment method')
+    } finally {
+      setSavingOverride(false)
     }
   }
 
@@ -719,10 +762,21 @@ export default function PatientProfilePage() {
                           <p className="mt-2 text-sm text-slate-500">
                             {formatTimeValue(visit.consultation_time)} | {formatRegisteredBy(visit.registered_by)}
                             {visit.doctor ? ` | Dr. ${visit.doctor.name.replace(/^Dr\.?\s*/i, '')}` : ' | Doctor not assigned'}
+                            {visit.payment_method && ` | ${visit.payment_method === 'cash' ? 'Cash' : 'Online'}`}
+                            {visit.payment_method_override_by && ' (Overridden)'}
                           </p>
                         </div>
                         <div className="flex flex-col items-start gap-2 lg:items-end">
                           <StatusBadge status={visit.status} />
+                          {visit.payment_method && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                              visit.payment_method === 'cash'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-blue-50 text-blue-700 border-blue-200'
+                            }`}>
+                              {visit.payment_method === 'cash' ? 'Cash' : 'Online'}
+                            </span>
+                          )}
                           {canManageBilling && visit.status !== 'cancelled' && (
                             <Button
                               type="button"
@@ -733,6 +787,17 @@ export default function PatientProfilePage() {
                             >
                               <Wallet className="h-3.5 w-3.5" />
                               Sell package / payment
+                            </Button>
+                          )}
+                          {isAdmin && visit.payment_method && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openOverrideDialog(visit)}
+                              className="whitespace-nowrap"
+                            >
+                              Override payment
                             </Button>
                           )}
                         </div>
@@ -782,6 +847,51 @@ export default function PatientProfilePage() {
           </div>
         </div>
       </div>
+
+      <Modal
+        isOpen={!!overrideVisitId}
+        onClose={() => { setOverrideVisitId(null); setOverrideReason('') }}
+        title="Override payment method"
+        size="sm"
+      >
+        <div className="space-y-4 p-6">
+          <p className="text-sm text-slate-600">
+            This update is logged for audit purposes and requires an explicit admin reason.
+          </p>
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">New payment method</span>
+            <select
+              value={overridePaymentMethod}
+              onChange={(event) => setOverridePaymentMethod(event.target.value as LedgerPaymentMethod)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+            >
+              <option value="cash">Cash</option>
+              <option value="online">Online</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Reason <span className="text-red-500">*</span></span>
+            <textarea
+              value={overrideReason}
+              onChange={(event) => setOverrideReason(event.target.value)}
+              rows={3}
+              placeholder="Explain why the payment method is being changed"
+              className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+            />
+            {overrideReason.length > 0 && overrideReason.trim().length < 5 && (
+              <p className="mt-1 text-xs text-red-600">Reason must be at least 5 characters</p>
+            )}
+          </label>
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" onClick={() => { setOverrideVisitId(null); setOverrideReason('') }} className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleOverrideSubmit} loading={savingOverride} disabled={overrideReason.trim().length < 5} className="flex-1">
+              Confirm override
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </DashboardLayout>
   )
 }

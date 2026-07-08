@@ -25,6 +25,9 @@ const schema = z.object({
   doctor_id: z.string().optional(),
   referral_source: z.string().optional(),
   visit_type: z.enum(['first_visit', 'follow_up']),
+  payment_method: z.enum(['cash', 'online'], {
+    error: 'Please select cash or online payment',
+  }),
   consultation_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   consultation_time: z.string().regex(/^\d{2}:\d{2}$/),
   address: z.string().optional(),
@@ -130,6 +133,7 @@ export function AddVisitDialog({ isOpen, onClose, onSuccess, doctors }: AddVisit
         father_name: data.father_name,
         referral_source: data.referral_source,
         visit_type: data.visit_type,
+        payment_method: data.payment_method,
         consultation_date: data.consultation_date,
         consultation_time: data.consultation_time,
       })
@@ -243,6 +247,17 @@ export function AddVisitDialog({ isOpen, onClose, onSuccess, doctors }: AddVisit
           ]}
           error={errors.visit_type?.message}
           {...register('visit_type')}
+        />
+        <Select
+          label="Payment Method"
+          required
+          options={[
+            { value: 'cash', label: 'Cash' },
+            { value: 'online', label: 'Online (UPI / Card)' },
+          ]}
+          placeholder="Select payment method"
+          error={errors.payment_method?.message}
+          {...register('payment_method')}
         />
         <Textarea
           label="Disease / Symptoms"

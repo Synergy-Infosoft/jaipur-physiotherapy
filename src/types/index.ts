@@ -62,6 +62,10 @@ export interface Visit {
   notes: string | null
   prescription: string | null
   registered_by: 'self' | 'receptionist'
+  payment_method: LedgerPaymentMethod | null
+  payment_method_locked_at: string | null
+  payment_method_override_by: string | null
+  payment_method_override_reason: string | null
   confirmation_token?: string
   created_at: string
   updated_at?: string
@@ -180,4 +184,8 @@ export interface DashboardStats {
   completed: number
   revenue_today: number
   pending_invoices: number
+}
+
+export interface PaymentMethodOverrideVisit extends Visit {
+  patient?: Patient
 }

@@ -21,6 +21,7 @@ import type {
   PaymentTransaction,
   LedgerPaymentMethod,
   WhatsAppNotification,
+  PaymentMethodOverrideVisit,
 } from '../types'
 import type { Database } from '../types/database'
 
@@ -37,6 +38,7 @@ export interface SelfRegisterPayload {
   visit_type: 'first_visit' | 'follow_up'
   consultation_date: string
   consultation_time: string
+  payment_method: LedgerPaymentMethod
 }
 
 export interface StaffUser {
@@ -80,6 +82,12 @@ export interface RecordPaymentResult {
   patient_package_id: string | null
   paid_total: number
   balance: number | null
+}
+
+export interface OverridePaymentMethodPayload {
+  visit_id: string
+  payment_method: LedgerPaymentMethod
+  reason: string
 }
 
 // ─── Patients ─────────────────────────────────────────────────────────────────
@@ -194,6 +202,37 @@ export async function updateVisit(id: string, updates: Partial<Visit>): Promise<
     .single()
   if (error) throw error
   return data as Visit
+}
+
+export async function overrideVisitPaymentMethod(payload: OverridePaymentMethodPayload): Promise<Visit> {
+  const response = await fetch(`/api/admin/visits/${encodeURIComponent(payload.visit_id)}/payment-method`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      payment_method: payload.payment_method,
+      reason: payload.reason,
+    }),
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to override payment method')
+  }
+
+  return result.visit as Visit
+}
+
+export async function getRecentPaymentMethodOverrides(limit = 10): Promise<PaymentMethodOverrideVisit[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('visits')
+    .select('*, patient:patients(*)')
+    .not('payment_method_override_by', 'is', null)
+    .order('updated_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+  return (data ?? []) as PaymentMethodOverrideVisit[]
 }
 
 // ─── Token ────────────────────────────────────────────────────────────────────

@@ -135,6 +135,7 @@ export async function POST(request: NextRequest) {
       p_consultation_time: input.consultation_time,
       p_registered_by: user ? 'receptionist' : 'self',
       p_request_hash: requestHash,
+      p_payment_method: input.payment_method,
     })
 
     if (error) {

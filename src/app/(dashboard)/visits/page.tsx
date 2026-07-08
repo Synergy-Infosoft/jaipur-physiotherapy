@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
-import { Search, Plus, StickyNote } from 'lucide-react'
+import { Search, Plus, StickyNote, Wallet } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -18,10 +18,16 @@ import type { Visit, Doctor } from '@/types'
 
 type StatusFilter = 'all' | Visit['status']
 
+function getPaymentMethodLabel(method: string | null | undefined): string {
+  if (!method) return 'Not set'
+  return method === 'cash' ? 'Cash' : 'Online'
+}
+
 export default function VisitsPage() {
   const router = useRouter()
   const toast = useToast()
   const { profile } = useAuth()
+  const isAdmin = profile?.role === 'admin'
   const canManageBilling = profile?.role === 'admin' || profile?.role === 'receptionist'
   const [visits, setVisits] = useState<Visit[]>([])
   const [doctors, setDoctors] = useState<Doctor[]>([])
@@ -36,6 +42,12 @@ export default function VisitsPage() {
   const [editPrescription, setEditPrescription] = useState('')
   const [saving, setSaving] = useState(false)
   const [generatingInvoiceVisitId, setGeneratingInvoiceVisitId] = useState<string | null>(null)
+
+  // Admin override state
+  const [overrideVisitId, setOverrideVisitId] = useState<string | null>(null)
+  const [overridePaymentMethod, setOverridePaymentMethod] = useState<'cash' | 'online'>('cash')
+  const [overrideReason, setOverrideReason] = useState('')
+  const [savingOverride, setSavingOverride] = useState(false)
 
   const loadData = useCallback(async () => {
     try {
@@ -55,7 +67,6 @@ export default function VisitsPage() {
   useEffect(() => {
     setLoading(true)
     loadData()
-    // Wrap async loadData so it doesn't leak a Promise as a cleanup return
     const handleChange = () => { loadData() }
     const unsub = dataService.subscribeToVisits(handleChange)
     return unsub
@@ -118,6 +129,40 @@ export default function VisitsPage() {
     } finally {
       setGeneratingInvoiceVisitId(null)
     }
+  }
+
+  const handleOverrideSubmit = async () => {
+    if (!overrideVisitId) return
+    if (overrideReason.trim().length < 5) {
+      toast.error('Override reason must be at least 5 characters')
+      return
+    }
+
+    setSavingOverride(true)
+    try {
+      await dataService.overrideVisitPaymentMethod({
+        visit_id: overrideVisitId,
+        payment_method: overridePaymentMethod,
+        reason: overrideReason.trim(),
+      })
+      toast.success('Payment method overridden')
+      setOverrideVisitId(null)
+      setOverrideReason('')
+      await loadData()
+      if (selectedVisit?.id === overrideVisitId) {
+        setSelectedVisit((prev) => prev ? { ...prev, payment_method: overridePaymentMethod } : prev)
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to override payment method')
+    } finally {
+      setSavingOverride(false)
+    }
+  }
+
+  const openOverrideDialog = (visitId: string, currentMethod: string | null | undefined) => {
+    setOverrideVisitId(visitId)
+    setOverridePaymentMethod(currentMethod === 'online' ? 'online' : 'cash')
+    setOverrideReason('')
   }
 
   const statusTabs: { value: StatusFilter; label: string }[] = [
@@ -222,6 +267,15 @@ export default function VisitsPage() {
                       {visit.registered_by === 'self' && (
                         <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full border border-purple-100">QR</span>
                       )}
+                      {visit.payment_method && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                          visit.payment_method === 'cash'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                        }`}>
+                          {getPaymentMethodLabel(visit.payment_method)}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-slate-600 mt-1 line-clamp-1">{visit.chief_complaint}</p>
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
@@ -251,6 +305,14 @@ export default function VisitsPage() {
                         className="text-xs px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 disabled:opacity-60 transition-colors font-medium"
                       >
                         {generatingInvoiceVisitId === visit.id ? 'Preparing...' : 'Generate invoice'}
+                      </button>
+                    )}
+                    {isAdmin && visit.payment_method && (
+                      <button
+                        onClick={() => openOverrideDialog(visit.id, visit.payment_method)}
+                        className="text-xs px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors font-medium"
+                      >
+                        Override payment
                       </button>
                     )}
                     {visit.status !== 'cancelled' && visit.status !== 'completed' && (
@@ -294,8 +356,29 @@ export default function VisitsPage() {
                 <p className="text-sm text-slate-800">{selectedVisit.chief_complaint}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 mb-0.5">Assigned Doctor</p>
-                <p className="text-sm text-slate-800">{selectedVisit.doctor?.name || 'Not assigned'}</p>
+                <p className="text-xs text-slate-500 mb-0.5">Payment Method</p>
+                <p className="text-sm font-semibold capitalize text-slate-800">
+                  {selectedVisit.payment_method ? (
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                      selectedVisit.payment_method === 'cash'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-blue-50 text-blue-700 border border-blue-200'
+                    }`}>
+                      <Wallet className="w-3 h-3" />
+                      {getPaymentMethodLabel(selectedVisit.payment_method)}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">Not set</span>
+                  )}
+                  {selectedVisit.payment_method_override_by && (
+                    <span className="ml-2 text-xs text-amber-600">(Overridden)</span>
+                  )}
+                </p>
+                {selectedVisit.payment_method_override_reason && (
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Reason: {selectedVisit.payment_method_override_reason}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -357,6 +440,14 @@ export default function VisitsPage() {
                   {generatingInvoiceVisitId === selectedVisit.id ? 'Preparing invoice...' : 'Generate invoice'}
                 </button>
               )}
+              {isAdmin && (
+                <button
+                  onClick={() => openOverrideDialog(selectedVisit.id, selectedVisit.payment_method)}
+                  className="px-4 py-2 text-sm font-medium bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors"
+                >
+                  Override payment method
+                </button>
+              )}
             </div>
 
             <div className="flex gap-3 pt-2 border-t border-slate-100">
@@ -369,6 +460,61 @@ export default function VisitsPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Admin Override Dialog */}
+      <Modal
+        isOpen={!!overrideVisitId}
+        onClose={() => { setOverrideVisitId(null); setOverrideReason('') }}
+        title="Override Payment Method"
+        size="sm"
+      >
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-slate-600">
+            This will change the locked payment method for this visit. A reason is required.
+          </p>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
+              New payment method
+            </label>
+            <select
+              value={overridePaymentMethod}
+              onChange={(e) => setOverridePaymentMethod(e.target.value as 'cash' | 'online')}
+              className="w-full h-10 px-3 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+            >
+              <option value="cash">Cash</option>
+              <option value="online">Online</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
+              Reason for override <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={overrideReason}
+              onChange={(e) => setOverrideReason(e.target.value)}
+              rows={3}
+              placeholder="Explain why the payment method is being changed..."
+              className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
+            />
+            {overrideReason.length > 0 && overrideReason.trim().length < 5 && (
+              <p className="mt-1 text-xs text-red-600">Reason must be at least 5 characters</p>
+            )}
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" onClick={() => { setOverrideVisitId(null); setOverrideReason('') }} className="flex-1">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleOverrideSubmit}
+              loading={savingOverride}
+              disabled={overrideReason.trim().length < 5}
+              className="flex-1"
+            >
+              Confirm Override
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       <AddVisitDialog
