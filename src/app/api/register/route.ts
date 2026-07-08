@@ -28,6 +28,14 @@ function addOrigin(origins: Set<string>, value: string | null | undefined) {
   if (origin) origins.add(origin)
 }
 
+function getMissingSupabaseConfig() {
+  const missing: string[] = []
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) missing.push('NEXT_PUBLIC_SUPABASE_URL')
+  if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) missing.push('NEXT_PUBLIC_SUPABASE_ANON_KEY')
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY')
+  return missing
+}
+
 function getAllowedOrigins(request: NextRequest) {
   const origins = new Set<string>()
   const forwardedHost = firstHeaderValue(request.headers.get('x-forwarded-host'))
@@ -85,6 +93,13 @@ export async function POST(request: NextRequest) {
   const input = parsed.data
 
   try {
+    const missingSupabaseConfig = getMissingSupabaseConfig()
+    if (missingSupabaseConfig.length > 0) {
+      const message = `Registration is unavailable because Supabase is not fully configured: ${missingSupabaseConfig.join(', ')}`
+      console.error(message)
+      return errorResponse('Registration is temporarily unavailable. Please contact reception.', 503)
+    }
+
     const admin = createAdminClient()
     const { data: settingsRow } = await admin
       .from('clinic_settings')
@@ -120,7 +135,7 @@ export async function POST(request: NextRequest) {
       ? null
       : createHash('sha256').update(`${salt}:${clientIp}`).digest('hex')
 
-    const { data, error } = await admin.rpc('register_patient_atomic', {
+    const rpcPayload = {
       p_full_name: input.full_name,
       p_age: input.age,
       p_gender: input.gender,
@@ -136,9 +151,32 @@ export async function POST(request: NextRequest) {
       p_registered_by: user ? 'receptionist' : 'self',
       p_request_hash: requestHash,
       p_payment_method: input.payment_method,
-    })
+    }
+
+    const { data, error } = await admin.rpc('register_patient_atomic', rpcPayload)
 
     if (error) {
+      const isLegacyRpcSignature = /does not exist|parameter|missing required|invalid input syntax|function .*register_patient_atomic/i.test(error.message)
+      if (isLegacyRpcSignature) {
+        const { data: legacyData, error: legacyError } = await admin.rpc('register_patient_atomic', {
+          ...rpcPayload,
+          p_payment_method: undefined,
+        })
+
+        if (!legacyError) {
+          return NextResponse.json(
+            {
+              token_number: legacyData?.[0]?.token_number,
+              visit_id: legacyData?.[0]?.visit_id,
+              patient_name: legacyData?.[0]?.patient_name,
+              confirmation_ref: legacyData?.[0]?.confirmation_token,
+              duplicate_registration: legacyData?.[0]?.duplicate_registration,
+            },
+            { status: legacyData?.[0]?.duplicate_registration ? 200 : 201, headers: { 'Cache-Control': 'no-store' } }
+          )
+        }
+      }
+
       if (error.message.includes('RATE_LIMITED')) {
         return errorResponse('Too many registration attempts. Please wait 15 minutes and try again.', 429)
       }

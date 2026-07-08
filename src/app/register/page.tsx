@@ -647,7 +647,6 @@ export default function RegisterPage() {
                     </div>
                   </div>
                 )}
-REPLACE
 
                 {/* STEP 3: Appointment */}
                 {currentStep === 3 && (
