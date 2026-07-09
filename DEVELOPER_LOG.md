@@ -184,3 +184,20 @@ This file records major project changes, database migrations, verification steps
 - `npm run lint` passed.
 - `npm run build` passed.
 - `supabase db push --linked --dry-run` confirmed the remote database is up to date after applying the Phase 6 migration.
+
+## 2026-07-09 - Phase 7 admin master report
+
+### Backend
+- Added read-only admin report API: `GET /api/admin/reports`.
+- Aggregates collections from `payment_transactions`, cash variances from `cash_reconciliations`, package balances from `patient_packages` + `payment_transactions`, delivered sessions from non-voided `package_sessions`, overrides from `visits`, follow-up outcomes from `follow_up_tasks`, and WhatsApp health from `whatsapp_notifications`.
+- No new report tables, stored balances, stored session counters, or RPCs were added.
+
+### Frontend
+- Added admin-only report page: `src/app/(dashboard)/reports/page.tsx`.
+- Added admin-only Reports sidebar link.
+- Report sections include collections, package balance risk, active package session gaps, payment method overrides, repeat-patient rate, follow-up outcomes, and WhatsApp delivery health.
+- Collections and packages sold can be filtered by date range and staff member.
+
+### Verification
+- `npm run check` passed.
+- `supabase db query --linked` confirmed the Phase 1-6 source tables used by the report exist on the linked database.

@@ -29,6 +29,7 @@ import type {
   FollowUpOutcome,
   FollowUpStatus,
   FollowUpTask,
+  AdminMasterReport,
 } from '../types'
 import type { Database } from '../types/database'
 
@@ -616,6 +617,31 @@ export async function updateFollowUpTask(payload: UpdateFollowUpTaskPayload): Pr
   }
 
   return result.task as FollowUpTask
+}
+
+export async function getAdminMasterReport(filters: {
+  date_from: string
+  date_to: string
+  staff_id?: string | null
+}): Promise<AdminMasterReport> {
+  const params = new URLSearchParams({
+    date_from: filters.date_from,
+    date_to: filters.date_to,
+  })
+
+  if (filters.staff_id) params.set('staff_id', filters.staff_id)
+
+  const response = await fetch(`/api/admin/reports?${params.toString()}`, {
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to load admin report')
+  }
+
+  return result.report as AdminMasterReport
 }
 
 export async function getDoctors(): Promise<Doctor[]> {

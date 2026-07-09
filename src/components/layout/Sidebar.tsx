@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Activity,
   ClipboardCheck,
+  BarChart3,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
@@ -144,25 +145,47 @@ export function Sidebar() {
           )}
 
           {profile?.role === 'admin' && (
-            <Link
-              href="/settings"
-              title={collapsed ? 'Settings' : undefined}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group relative',
-                pathname === '/settings'
-                  ? 'bg-white/10 text-white border-l-2 border-[var(--primary)]'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5',
-                collapsed && 'justify-center px-0 border-l-0'
-              )}
-            >
-              <Settings className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && <span className="text-sm font-medium">Settings</span>}
-              {collapsed && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg">
-                  Settings
-                </div>
-              )}
-            </Link>
+            <>
+              <Link
+                href="/reports"
+                title={collapsed ? 'Reports' : undefined}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group relative',
+                  pathname === '/reports'
+                    ? 'bg-white/10 text-white border-l-2 border-[var(--primary)]'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5',
+                  collapsed && 'justify-center px-0 border-l-0'
+                )}
+              >
+                <BarChart3 className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="text-sm font-medium">Reports</span>}
+                {collapsed && (
+                  <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg">
+                    Reports
+                  </div>
+                )}
+              </Link>
+
+              <Link
+                href="/settings"
+                title={collapsed ? 'Settings' : undefined}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group relative',
+                  pathname === '/settings'
+                    ? 'bg-white/10 text-white border-l-2 border-[var(--primary)]'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5',
+                  collapsed && 'justify-center px-0 border-l-0'
+                )}
+              >
+                <Settings className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="text-sm font-medium">Settings</span>}
+                {collapsed && (
+                  <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg">
+                    Settings
+                  </div>
+                )}
+              </Link>
+            </>
           )}
         </div>
       </nav>

@@ -28,6 +28,124 @@ export interface FollowUpTask {
   patient?: Patient | null
   patient_package?: PatientPackage | null
 }
+
+export interface AdminReportStaffMember {
+  id: string
+  full_name: string
+  role: UserRole
+}
+
+export interface AdminReportCollections {
+  date_from: string
+  date_to: string
+  staff_id: string | null
+  cash_total: number
+  online_total: number
+  total_collected: number
+  transaction_count: number
+  cash_transaction_count: number
+  online_transaction_count: number
+  reconciliation_variance_total: number
+  reconciliation_count: number
+  reconciliation_variances: Array<{
+    id: string
+    shift_date: string
+    system_cash_total: number
+    counted_cash: number
+    variance: number
+    closed_by_name: string | null
+    created_at: string
+  }>
+}
+
+export interface AdminReportPackageSummary {
+  sold_count: number
+  sold_quoted_total: number
+  outstanding_past_expected_count: number
+  outstanding_past_expected_balance: number
+  outstanding_packages: Array<{
+    id: string
+    patient_name: string
+    package_name: string
+    status: PackageStatus
+    total_sessions: number
+    quoted_amount: number
+    paid_total: number
+    balance_due: number
+    expected_end_date: string
+    created_at: string
+  }>
+}
+
+export interface AdminReportSessionSummary {
+  active_package_count: number
+  expected_total: number
+  delivered_total: number
+  overrun_count: number
+  underrun_count: number
+  rows: Array<{
+    id: string
+    patient_name: string
+    package_name: string
+    total_sessions: number
+    expected_sessions: number
+    sessions_used: number
+    status: 'on_track' | 'overrun' | 'underrun'
+  }>
+}
+
+export interface AdminReportOverrideSummary {
+  total_count: number
+  by_staff: Array<{
+    staff_id: string
+    staff_name: string
+    count: number
+    most_recent_at: string
+  }>
+  recent: Array<{
+    id: string
+    patient_name: string
+    payment_method: LedgerPaymentMethod
+    reason: string
+    staff_name: string
+    updated_at: string
+  }>
+}
+
+export interface AdminReportRepeatPatientRate {
+  patient_count: number
+  repeat_patient_count: number
+  rate: number
+}
+
+export interface AdminReportFollowUpOutcomes {
+  total_resolved: number
+  outcomes: Array<{
+    outcome: FollowUpOutcome | 'not_logged'
+    count: number
+  }>
+}
+
+export interface AdminReportWhatsAppHealth {
+  total_last_7_days: number
+  failed_last_7_days: number
+  failure_rate: number
+  sent: number
+  queued: number
+  failed: number
+}
+
+export interface AdminMasterReport {
+  generated_at: string
+  staff_members: AdminReportStaffMember[]
+  collections: AdminReportCollections
+  packages: AdminReportPackageSummary
+  sessions: AdminReportSessionSummary
+  overrides: AdminReportOverrideSummary
+  repeat_patient_rate: AdminReportRepeatPatientRate
+  follow_up_outcomes: AdminReportFollowUpOutcomes
+  whatsapp_health: AdminReportWhatsAppHealth
+}
 export type WhatsAppNotificationType =
   | 'registration_confirmation'
   | 'payment_receipt'
