@@ -239,3 +239,24 @@ This file records major project changes, database migrations, verification steps
 - `supabase db push --linked --dry-run` showed only `20260709143000_limit_package_sessions_per_day.sql`.
 - `supabase db push --linked` applied the migration.
 - `supabase db query --linked` confirmed the live `mark_session_atomic` definition contains `PACKAGE_DAILY_SESSION_LIMIT_REACHED`.
+
+## 2026-07-09 - Admin therapist workspace and daily-limit override
+
+### Navigation
+- Added the Therapist workspace link to admin sidebar navigation.
+- Therapist users still keep the simplified therapist-only navigation.
+
+### Session Marking
+- Updated therapist UI so the two-sessions-per-day limit is only enforced for therapist users.
+- Admin users can mark multiple same-day sessions from the therapist card or calendar when supervising/correcting records.
+
+### Database
+- Added and applied migration `supabase/migrations/20260709144000_allow_admin_session_daily_override.sql`.
+- Recreated `mark_session_atomic` so `PACKAGE_DAILY_SESSION_LIMIT_REACHED` is raised only when `actor_role = 'therapist'`.
+
+### Verification
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `supabase db push --linked --dry-run` showed only `20260709144000_allow_admin_session_daily_override.sql`.
+- `supabase db push --linked --yes` applied the migration.
+- `supabase db query --linked` confirmed the live RPC contains `actor_role = 'therapist' and sessions_today >= 2`.

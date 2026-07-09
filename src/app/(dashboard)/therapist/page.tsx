@@ -77,6 +77,7 @@ export default function TherapistPage() {
   const [selectedPackage, setSelectedPackage] = useState<TherapistActivePackage | null>(null)
 
   const canAccess = profile?.role === 'therapist' || profile?.role === 'admin'
+  const canBypassDailyLimit = profile?.role === 'admin'
 
   const loadPackages = useCallback(async (selectedPackageId?: string) => {
     try {
@@ -123,7 +124,7 @@ export default function TherapistPage() {
 
   const markSession = async (patientPackage: TherapistActivePackage) => {
     if (patientPackage.sessions_remaining <= 0) return
-    if (patientPackage.today_sessions >= 2) {
+    if (!canBypassDailyLimit && patientPackage.today_sessions >= 2) {
       toast.error('This package already has 2 sessions marked today')
       return
     }
@@ -208,7 +209,7 @@ export default function TherapistPage() {
             <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
               {packages.map((patientPackage) => {
                 const isExhausted = patientPackage.sessions_remaining <= 0
-                const reachedDailyLimit = patientPackage.today_sessions >= 2
+                const reachedDailyLimit = !canBypassDailyLimit && patientPackage.today_sessions >= 2
                 return (
                   <article key={patientPackage.patient_package_id} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -236,7 +237,7 @@ export default function TherapistPage() {
                             'rounded-full px-2 py-1',
                             reachedDailyLimit ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'
                           )}>
-                            Today {patientPackage.today_sessions}/2
+                            Today {canBypassDailyLimit ? patientPackage.today_sessions : `${patientPackage.today_sessions}/2`}
                           </span>
                         </div>
                       </div>
@@ -310,16 +311,18 @@ export default function TherapistPage() {
                       <CalendarDays className="h-5 w-5 text-[var(--primary)]" />
                       Session calendar
                     </h3>
-                    <p className="mt-1 text-sm text-slate-500">Tap today to mark a session. A package can be marked twice per day.</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Tap today to mark a session. Therapists are limited to two marks per package per day.
+                    </p>
                   </div>
                   <Button
                     type="button"
                     onClick={() => markSession(selectedPackage)}
                     loading={markingPackageId === selectedPackage.patient_package_id}
-                    disabled={selectedPackage.sessions_remaining <= 0 || selectedPackage.today_sessions >= 2 || Boolean(markingPackageId)}
+                    disabled={selectedPackage.sessions_remaining <= 0 || (!canBypassDailyLimit && selectedPackage.today_sessions >= 2) || Boolean(markingPackageId)}
                   >
                     <CalendarCheck className="h-4 w-4" />
-                    {selectedPackage.today_sessions >= 2 ? 'Daily limit reached' : 'Mark today'}
+                    {!canBypassDailyLimit && selectedPackage.today_sessions >= 2 ? 'Daily limit reached' : 'Mark today'}
                   </Button>
                 </div>
 
@@ -331,7 +334,10 @@ export default function TherapistPage() {
                     if (!cell) return <div key={`empty-${index}`} className="min-h-16 rounded-lg bg-slate-50/60" />
                     const count = currentSessionCounts.get(cell.key) ?? 0
                     const isToday = cell.key === todayKey
-                    const canMarkToday = isToday && selectedPackage.sessions_remaining > 0 && selectedPackage.today_sessions < 2 && !markingPackageId
+                    const canMarkToday = isToday
+                      && selectedPackage.sessions_remaining > 0
+                      && (canBypassDailyLimit || selectedPackage.today_sessions < 2)
+                      && !markingPackageId
                     return (
                       <button
                         key={cell.key}
