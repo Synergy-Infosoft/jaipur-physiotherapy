@@ -207,3 +207,8 @@ This file records major project changes, database migrations, verification steps
 ### Documentation
 - Updated `PROJECT_CONTEXT.md` through Phase 7.
 - Added current phase status, recent commits, Supabase/WhatsApp/Edge Function setup notes, expanded env var guidance, new route map entries, updated roles, new database tables/RPCs, anti-fraud invariants, and read-first file guidance for future developers.
+
+## 2026-07-09 - Project context post-WhatsApp/portal refresh
+
+### Documentation
+- Updated `PROJECT_CONTEXT.md` with the latest WhatsApp template placeholder names, public webhook middleware note, temporary Hostinger domain, portal magic-link URL behavior, and current WhatsApp testing failure modes.

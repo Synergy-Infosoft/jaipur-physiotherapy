@@ -44,13 +44,15 @@ Implemented and pushed through Phase 7.
 Recent commits:
 
 ```text
+c7f2593 docs: update whatsapp template placeholders
+d587288 fix: use configured app url for portal links
+0f9e31c fix: expose webhook endpoint for Meta verification
+0c7bec5 docs: refresh project context through phase 7
 e32fad3 feat: add admin master report
 62c8727 feat: add follow-up task workflow
 083ae42 docs: update phase verification log
 afdbd57 feat: add session portal workflow
 bdbfe06 feat: add cash reconciliation workflow
-3816ac0 feat: add payment method lock and admin override
-7037b13 feat: add whatsapp payment notifications
 ```
 
 Phase summary:
@@ -64,9 +66,13 @@ Phase summary:
 
 Latest verification:
 
-- `npm run check` passed after Phase 7.
+- `npm run check` passed after Phase 7 and again during the post-WhatsApp/portal status check.
 - Linked Supabase DB had Phase 1-6 source tables available for the report.
 - Phase 6 Edge Function `detect-follow-up-tasks` was deployed and cron job `detect-follow-up-tasks-daily` was active.
+- Live Hostinger temporary domain is reachable and unauthenticated `/` redirects to `/login`.
+- Current WhatsApp test failures are external setup issues:
+  - template names must exist/translate in Meta;
+  - recipient numbers must be in the allowed test list.
 
 ## 2. Problem it solves
 
@@ -191,6 +197,13 @@ Current setup expectation:
 
 - Testing can use Meta's Cloud API test phone number and approved test recipient numbers.
 - Production needs real WhatsApp Business number, approved templates, billing setup, and final webhook domain.
+- Current placeholder template names in `.env.example` are:
+  - `registration_confirmation`
+  - `payment_receipt`
+  - `package_created`
+  - `portal_link`
+  - `session_reminder`
+- If Meta approves different template names, update the host environment variables instead of hard-coding names.
 - Real tokens must only be stored in `.env.local`, host environment variables, or Supabase secrets. They must never be committed.
 
 ### Hosting
@@ -224,11 +237,11 @@ META_WHATSAPP_ACCESS_TOKEN=your-meta-whatsapp-access-token
 META_WHATSAPP_PHONE_NUMBER_ID=your-meta-whatsapp-phone-number-id
 META_WHATSAPP_BUSINESS_ACCOUNT_ID=your-meta-whatsapp-business-account-id
 META_WHATSAPP_WEBHOOK_VERIFY_TOKEN=replace-with-a-random-webhook-verify-token
-REGISTRATION_CONFIRMATION_TEMPLATE_NAME=registration_confirmation_template_name
-PAYMENT_RECEIPT_TEMPLATE_NAME=payment_receipt_template_name
-PACKAGE_CREATED_TEMPLATE_NAME=package_created_template_name
-PORTAL_LINK_TEMPLATE_NAME=portal_link_template_name
-SESSION_REMINDER_TEMPLATE_NAME=session_reminder_template_name
+REGISTRATION_CONFIRMATION_TEMPLATE_NAME=registration_confirmation
+PAYMENT_RECEIPT_TEMPLATE_NAME=payment_receipt
+PACKAGE_CREATED_TEMPLATE_NAME=package_created
+PORTAL_LINK_TEMPLATE_NAME=portal_link
+SESSION_REMINDER_TEMPLATE_NAME=session_reminder
 WHATSAPP_TEMPLATE_LANGUAGE=en
 FOLLOW_UP_CRON_SECRET=replace-with-a-random-follow-up-cron-secret
 ```
@@ -251,7 +264,8 @@ Meaning:
 - `NEXT_PUBLIC_APP_URL`
   - Canonical app origin.
   - Must be changed from localhost when live.
-  - Used for QR links and origin validation.
+  - Used for QR links, patient portal magic links, WhatsApp/portal URLs, and origin validation.
+  - Important: if this is missing or wrong, portal links may be generated with a local origin such as `0.0.0.0:3000`.
 
 - `REGISTRATION_RATE_LIMIT_SALT`
   - Server-only salt used to hash client IPs for public registration rate limiting.
@@ -288,6 +302,14 @@ Meaning:
   - In hosted Supabase, this is configured in Edge Function secrets and Vault. The placeholder in `.env.example` is not a real value.
 
 Do not commit `.env.local`.
+
+Current temporary public app URL used during development:
+
+```text
+https://palegoldenrod-horse-305406.hostingersite.com
+```
+
+This should be set as `NEXT_PUBLIC_APP_URL` and included in `APP_ALLOWED_ORIGINS` on the host while the temporary domain is active.
 
 ## 6. Project structure
 
@@ -523,6 +545,8 @@ Public patient portal page.
 - Read-only package/payment/session overview.
 - Uses tokenized portal links.
 - No patient login is required.
+- Admin can regenerate the portal magic link from the patient detail page.
+- Regenerated links use `NEXT_PUBLIC_APP_URL` via `buildPatientPortalUrl(...)`; do not use `request.nextUrl.origin` here because local access through `0.0.0.0:3000` creates unusable mobile links.
 
 Known theme behavior:
 
@@ -810,8 +834,11 @@ Public API prefixes:
 - `/api/public-config`
 - `/api/registration-status`
 - `/api/portal`
+- `/api/webhooks`
 
 Everything else requires a Supabase session. Unauthenticated page requests redirect to `/login?next=<path>`. Unauthenticated protected API requests receive `401` JSON.
+
+`/api/webhooks` is public so Meta can perform WhatsApp webhook verification and delivery callbacks without a logged-in dashboard session.
 
 If an authenticated user visits `/login`, middleware redirects to `/dashboard`.
 
@@ -956,6 +983,13 @@ Sessions used/remaining are computed from non-voided `package_sessions`. Do not 
 ### WhatsApp delivery is non-blocking
 
 WhatsApp send failures must be logged in `whatsapp_notifications` but must not roll back package, payment, registration, or session workflows.
+
+Current known testing failure modes:
+
+- `(#132001) Template name does not exist in the translation`
+  - The configured template name/language does not exist or is not approved in Meta.
+- `(#131030) Recipient phone number not in allowed list`
+  - The patient/test recipient number has not been added to the Meta Cloud API test recipient list.
 
 ### Follow-up detection
 
