@@ -15,6 +15,7 @@ import {
   Hash,
   HeartPulse,
   IndianRupee,
+  Link2,
   MapPin,
   Megaphone,
   NotebookText,
@@ -172,6 +173,8 @@ export default function PatientProfilePage() {
   const [overridePaymentMethod, setOverridePaymentMethod] = useState<LedgerPaymentMethod>('cash')
   const [overrideReason, setOverrideReason] = useState('')
   const [savingOverride, setSavingOverride] = useState(false)
+  const [regeneratingPortalLink, setRegeneratingPortalLink] = useState(false)
+  const [portalUrl, setPortalUrl] = useState<string | null>(null)
 
   const loadPatientLedger = async (patientId: string) => {
     const [packagesData, paymentData] = await Promise.all([
@@ -349,6 +352,27 @@ export default function PatientProfilePage() {
     )
   }
 
+  const regeneratePortalLink = async () => {
+    if (!patient) return
+    const confirmed = window.confirm(
+      'Regenerate this patient portal link? The previous link will be revoked immediately.'
+    )
+    if (!confirmed) return
+
+    setRegeneratingPortalLink(true)
+    try {
+      const result = await dataService.regeneratePatientPortalLink(patient.id)
+      setPortalUrl(result.portal_url)
+      await navigator.clipboard?.writeText(result.portal_url)
+      toast.success('Portal link regenerated and copied')
+    } catch (error) {
+      console.error('Failed to regenerate portal link:', error)
+      toast.error(error instanceof Error ? error.message : 'Unable to regenerate portal link')
+    } finally {
+      setRegeneratingPortalLink(false)
+    }
+  }
+
   const latestVisit = visits[0]
   const completedVisits = visits.filter((visit) => visit.status === 'completed').length
   const pendingVisits = visits.filter((visit) => visit.status === 'pending').length
@@ -357,7 +381,8 @@ export default function PatientProfilePage() {
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
           <button
             type="button"
             aria-label="Back to patients"
@@ -371,7 +396,19 @@ export default function PatientProfilePage() {
             <h1 className="mt-1 text-2xl font-bold text-slate-900 md:text-3xl">{patient.full_name}</h1>
             <p className="mt-1 text-sm text-slate-500">Registered on {formatDate(patient.created_at, 'MMMM d, yyyy')}</p>
           </div>
+          </div>
+          {isAdmin && (
+            <Button type="button" variant="outline" onClick={regeneratePortalLink} loading={regeneratingPortalLink}>
+              <Link2 className="h-4 w-4" />
+              Regenerate portal link
+            </Button>
+          )}
         </div>
+        {portalUrl && (
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            New portal link copied: <span className="font-semibold break-all">{portalUrl}</span>
+          </div>
+        )}
 
         <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
           <div className="bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 md:p-6">
@@ -640,7 +677,15 @@ export default function PatientProfilePage() {
                                 {patientPackage.total_sessions} session{patientPackage.total_sessions === 1 ? '' : 's'} | Sold {formatDateTime(patientPackage.created_at)}
                               </p>
                             </div>
-                            <div className="grid grid-cols-3 gap-2 text-right">
+                            <div className="grid grid-cols-2 gap-2 text-right sm:grid-cols-5">
+                              <div>
+                                <p className="text-xs font-semibold text-slate-500">Used</p>
+                                <p className="font-bold text-blue-700">{patientPackage.sessions_used ?? 0}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-slate-500">Left</p>
+                                <p className="font-bold text-emerald-700">{patientPackage.sessions_remaining ?? patientPackage.total_sessions}</p>
+                              </div>
                               <div>
                                 <p className="text-xs font-semibold text-slate-500">Quoted</p>
                                 <p className="font-bold text-slate-900">{formatCurrency(patientPackage.quoted_amount)}</p>

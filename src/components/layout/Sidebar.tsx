@@ -14,6 +14,7 @@ import {
   LogOut,
   Stethoscope,
   ExternalLink,
+  Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
@@ -96,6 +97,28 @@ export function Sidebar() {
               </Link>
             )
           })}
+
+          {profile?.role === 'therapist' && (
+            <Link
+              href="/therapist"
+              title={collapsed ? 'Therapist' : undefined}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group relative',
+                pathname === '/therapist'
+                  ? 'bg-white/10 text-white border-l-2 border-[var(--primary)]'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5',
+                collapsed && 'justify-center px-0 border-l-0'
+              )}
+            >
+              <Activity className="w-5 h-5 flex-shrink-0" />
+              {!collapsed && <span className="text-sm font-medium">Therapist</span>}
+              {collapsed && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg">
+                  Therapist
+                </div>
+              )}
+            </Link>
+          )}
 
           {profile?.role === 'admin' && (
             <Link

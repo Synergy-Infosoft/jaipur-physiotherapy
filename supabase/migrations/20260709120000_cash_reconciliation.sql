@@ -11,19 +11,23 @@ create table if not exists public.cash_reconciliations (
 
 alter table public.cash_reconciliations enable row level security;
 
-create policy if not exists "Allow staff to read reconciliations"
+revoke all on public.cash_reconciliations from public, anon, authenticated;
+grant select, insert on public.cash_reconciliations to authenticated;
+grant all on public.cash_reconciliations to service_role;
+
+drop policy if exists "Allow staff to read reconciliations" on public.cash_reconciliations;
+create policy "Allow staff to read reconciliations"
   on public.cash_reconciliations
   for select
-  using (
-    auth.uid() is not null
-  );
+  to authenticated
+  using ((select private.current_user_role()) in ('admin', 'receptionist'));
 
-create policy if not exists "Allow staff to insert reconciliations"
+drop policy if exists "Allow staff to insert reconciliations" on public.cash_reconciliations;
+create policy "Allow staff to insert reconciliations"
   on public.cash_reconciliations
   for insert
-  with check (
-    auth.uid() is not null
-  );
+  to authenticated
+  with check ((select private.current_user_role()) in ('admin', 'receptionist'));
 
 create or replace function public.close_cash_shift_atomic(
   p_counted_cash numeric,

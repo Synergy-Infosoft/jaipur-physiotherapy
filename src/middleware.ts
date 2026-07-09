@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 const publicPaths = new Set(['/login', '/register', '/confirmation'])
-const publicApiPrefixes = ['/api/register', '/api/public-config', '/api/registration-status']
+const publicApiPrefixes = ['/api/register', '/api/public-config', '/api/registration-status', '/api/portal']
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })
@@ -24,7 +24,7 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
   const pathname = request.nextUrl.pathname
-  const isPublic = publicPaths.has(pathname) || publicApiPrefixes.some((prefix) => pathname.startsWith(prefix))
+  const isPublic = publicPaths.has(pathname) || pathname === '/portal' || pathname.startsWith('/portal/') || publicApiPrefixes.some((prefix) => pathname.startsWith(prefix))
 
   if (!user && !isPublic) {
     if (pathname.startsWith('/api/')) {

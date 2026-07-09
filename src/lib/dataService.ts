@@ -23,6 +23,9 @@ import type {
   WhatsAppNotification,
   PaymentMethodOverrideVisit,
   CashReconciliationRecord,
+  MarkSessionResult,
+  PatientPortalOverview,
+  TherapistActivePackage,
 } from '../types'
 import type { Database } from '../types/database'
 
@@ -54,7 +57,7 @@ export interface CreateStaffUserPayload {
   full_name: string
   email: string
   password: string
-  role: Extract<UserRole, 'receptionist' | 'doctor'>
+  role: Extract<UserRole, 'receptionist' | 'doctor' | 'therapist'>
 }
 
 export interface CreatePatientPackagePayload {
@@ -375,7 +378,33 @@ export async function getPatientPackages(patientId: string): Promise<PatientPack
   ])
 
   if (packagesError) throw packagesError
-  return withComputedPackageBalances((packages ?? []) as PatientPackage[], payments)
+
+  const packageRows = (packages ?? []) as PatientPackage[]
+  const packageIds = packageRows.map((patientPackage) => patientPackage.id)
+  const sessionsByPackage = new Map<string, number>()
+
+  if (packageIds.length > 0) {
+    const { data: sessions, error: sessionsError } = await supabase
+      .from('package_sessions')
+      .select('patient_package_id, is_voided')
+      .in('patient_package_id', packageIds)
+
+    if (sessionsError) throw sessionsError
+
+    for (const session of (sessions ?? []) as Array<{ patient_package_id: string; is_voided: boolean }>) {
+      if (session.is_voided) continue
+      sessionsByPackage.set(session.patient_package_id, (sessionsByPackage.get(session.patient_package_id) ?? 0) + 1)
+    }
+  }
+
+  return withComputedPackageBalances(packageRows, payments).map((patientPackage) => {
+    const sessionsUsed = sessionsByPackage.get(patientPackage.id) ?? 0
+    return {
+      ...patientPackage,
+      sessions_used: sessionsUsed,
+      sessions_remaining: Math.max(Number(patientPackage.total_sessions) - sessionsUsed, 0),
+    }
+  })
 }
 
 export async function getPaymentHistory(filters: PaymentHistoryFilters): Promise<PaymentTransaction[]> {
@@ -493,6 +522,61 @@ export async function closeCashShift(payload: CloseCashShiftPayload): Promise<Ca
   }
 
   return result.reconciliation as CashReconciliationRecord
+}
+
+export async function getTherapistActivePackages(): Promise<TherapistActivePackage[]> {
+  const response = await fetch('/api/therapist/sessions', {
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to load therapy packages')
+  }
+
+  return result.packages as TherapistActivePackage[]
+}
+
+export async function markSessionComplete(patientPackageId: string): Promise<MarkSessionResult> {
+  const response = await fetch('/api/therapist/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ patient_package_id: patientPackageId }),
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to mark session complete')
+  }
+
+  return result.session as MarkSessionResult
+}
+
+export async function getPatientPortalOverview(token: string): Promise<PatientPortalOverview> {
+  const response = await fetch(`/api/portal?token=${encodeURIComponent(token)}`, {
+    cache: 'no-store',
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to load patient portal')
+  }
+
+  return result.overview as PatientPortalOverview
+}
+
+export async function regeneratePatientPortalLink(patientId: string): Promise<{ portal_url: string }> {
+  const response = await fetch(`/api/admin/patients/${encodeURIComponent(patientId)}/portal-link`, {
+    method: 'POST',
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to regenerate portal link')
+  }
+
+  return { portal_url: result.portal_url as string }
 }
 
 export async function getDoctors(): Promise<Doctor[]> {

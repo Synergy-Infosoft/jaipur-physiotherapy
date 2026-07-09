@@ -127,9 +127,86 @@ export interface PatientPackage {
   paid_total?: number
   balance?: number
   payments?: PaymentTransaction[]
+  sessions_used?: number
+  sessions_remaining?: number
   visit?: Visit | null
 }
 
+export interface PatientPortalLink {
+  id: string
+  patient_id: string
+  token: string
+  created_at: string
+  revoked_at: string | null
+  last_accessed_at: string | null
+}
+
+export interface PackageSession {
+  id: string
+  patient_package_id: string
+  session_date: string
+  marked_by: string | null
+  marked_at: string
+  is_voided: boolean
+  void_reason: string | null
+  notes: string | null
+}
+
+export interface MarkSessionResult {
+  session_id: string
+  patient_package_id: string
+  patient_id: string
+  package_name: string
+  total_sessions: number
+  sessions_used: number
+  sessions_remaining: number
+  whatsapp?: {
+    notificationId: string | null
+    status: WhatsAppNotificationStatus
+    metaMessageId: string | null
+    errorMessage: string | null
+  }
+}
+
+export interface TherapistActivePackage {
+  patient_package_id: string
+  patient_id: string
+  patient_name: string
+  patient_phone: string | null
+  package_name: string
+  total_sessions: number
+  sessions_used: number
+  sessions_remaining: number
+  last_session_at: string | null
+}
+
+export interface PatientPortalPayment {
+  id: string
+  amount: number
+  payment_method: LedgerPaymentMethod
+  is_correction: boolean
+  correction_reason: string | null
+  created_at: string
+}
+
+export interface PatientPortalPackage {
+  package_id: string
+  package_name: string
+  status: PackageStatus
+  total_sessions: number
+  sessions_used: number
+  sessions_remaining: number
+  quoted_amount: number
+  paid_total: number
+  balance: number
+  payment_history: PatientPortalPayment[]
+}
+
+export interface PatientPortalOverview {
+  patient_id: string
+  patient_name: string
+  packages: PatientPortalPackage[]
+}
 export interface WhatsAppNotification {
   id: string
   patient_id: string

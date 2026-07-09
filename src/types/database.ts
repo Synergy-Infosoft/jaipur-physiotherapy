@@ -300,6 +300,73 @@ export interface Database {
           },
         ]
       }
+      package_sessions: {
+        Row: {
+          id: string
+          patient_package_id: string
+          session_date: string
+          marked_by: string | null
+          marked_at: string
+          is_voided: boolean
+          void_reason: string | null
+          notes: string | null
+        }
+        Insert: {
+          id?: string
+          patient_package_id: string
+          session_date?: string
+          marked_by?: string | null
+          marked_at?: string
+          is_voided?: boolean
+          void_reason?: string | null
+          notes?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['package_sessions']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'package_sessions_patient_package_id_fkey'
+            columns: ['patient_package_id']
+            isOneToOne: false
+            referencedRelation: 'patient_packages'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'package_sessions_marked_by_fkey'
+            columns: ['marked_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      patient_portal_links: {
+        Row: {
+          id: string
+          patient_id: string
+          token: string
+          created_at: string
+          revoked_at: string | null
+          last_accessed_at: string | null
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          token?: string
+          created_at?: string
+          revoked_at?: string | null
+          last_accessed_at?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['patient_portal_links']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'patient_portal_links_patient_id_fkey'
+            columns: ['patient_id']
+            isOneToOne: false
+            referencedRelation: 'patients'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       charge_presets: Table<{
         id: string
         name: string
@@ -461,6 +528,54 @@ export interface Database {
           notes: string | null
           closed_by: string | null
           created_at: string
+        }>
+      }
+      mark_session_atomic: {
+        Args: {
+          p_patient_package_id: string
+          p_marked_by: string
+        }
+        Returns: Array<{
+          session_id: string
+          patient_package_id: string
+          patient_id: string
+          package_name: string
+          total_sessions: number
+          sessions_used: number
+          sessions_remaining: number
+        }>
+      }
+      void_package_session_atomic: {
+        Args: {
+          p_session_id: string
+          p_reason: string
+          p_admin_id: string
+        }
+        Returns: Array<{
+          id: string
+          patient_package_id: string
+          is_voided: boolean
+          void_reason: string | null
+          marked_at: string
+        }>
+      }
+      get_patient_portal_overview: {
+        Args: {
+          p_token: string
+        }
+        Returns: Array<{
+          patient_id: string
+          patient_name: string
+          package_id: string | null
+          package_name: string | null
+          status: 'active' | 'completed' | 'cancelled' | null
+          total_sessions: number | null
+          sessions_used: number
+          sessions_remaining: number
+          quoted_amount: number | null
+          paid_total: number
+          balance: number
+          payment_history: Json
         }>
       }
     }

@@ -98,3 +98,51 @@ This file records major project changes, database migrations, verification steps
 - Meta template names are intentionally read from env vars because approved template names can change.
 - The current notification type check does not include a dedicated `package_created` value, so package creation attempts are logged with `notification_type = 'payment_receipt'` and `payload.event_type = 'package_created'`.
 - `supabase db advisors --linked` still reports existing warnings for the intentionally callable ledger RPCs and some pre-existing auth/policy settings; no new warning was reported for `whatsapp_notifications`.
+
+## 2026-07-09 - Phase 3/4 verification and Phase 5 session portal
+
+### Phase 3 Verification
+- Confirmed payment method locking migration exists: `supabase/migrations/20260708101504_lock_visit_payment_method.sql`.
+- Confirmed `/api/register` passes `p_payment_method` into `register_patient_atomic`.
+- Confirmed registration schema and public registration form require `cash` or `online` with no default preselection.
+- Confirmed admin override route/UI exists for visit payment method changes with mandatory reason.
+- Confirmed recent overrides are shown on the dashboard.
+
+### Phase 4 Verification
+- Confirmed cash reconciliation migration exists: `supabase/migrations/20260709120000_cash_reconciliation.sql`.
+- Confirmed `GET/POST /api/admin/cash-reconciliation` and dashboard close-shift UI exist.
+- Note for future hardening: the Phase 4 table policy currently allows any authenticated user to select/insert cash reconciliation rows. The API route limits access to admin/receptionist, but RLS could be tightened in a follow-up migration.
+
+### Phase 5 Database
+- Added migration: `supabase/migrations/20260709123000_session_checkin_patient_portal.sql`.
+- Added `package_sessions` table for append-only delivered therapy session rows.
+- Added `patient_portal_links` table for revocable public portal tokens.
+- Added RPCs:
+  - `mark_session_atomic`
+  - `void_package_session_atomic`
+  - `get_patient_portal_overview`
+- Sessions used and sessions remaining are computed from non-voided `package_sessions` rows. No stored counter column was added.
+
+### Phase 5 Backend
+- Added `src/lib/patientPortal.ts` for server-only portal link creation/regeneration and URL building.
+- Added `GET/POST /api/therapist/sessions` for therapist/admin session workflows.
+- Added `GET /api/portal?token=<uuid>` for public read-only portal data.
+- Added `POST /api/admin/patients/[id]/portal-link` for admin portal-link regeneration.
+- Updated registration and package creation routes to create/reuse portal links and log WhatsApp attempts.
+
+### Phase 5 Frontend
+- Added public patient portal page: `src/app/portal/[token]/page.tsx`.
+- Added therapist workbench: `src/app/(dashboard)/therapist/page.tsx`.
+- Added therapist nav item for therapist role in `src/components/layout/Sidebar.tsx`.
+- Updated patient detail package cards with computed session used/remaining counts.
+- Added admin portal link regeneration action on patient detail.
+- Updated Settings/staff creation to allow therapist users.
+
+### Env Vars
+- Added placeholder-only template env vars to `.env.example`:
+  - `REGISTRATION_CONFIRMATION_TEMPLATE_NAME`
+  - `PORTAL_LINK_TEMPLATE_NAME`
+  - `SESSION_REMINDER_TEMPLATE_NAME`
+
+### Verification
+- Pending in this working session: run `npm run typecheck`, `npm run lint`, `npm run build`, and the touched registration test.

@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { buildPatientPortalUrl, getOrCreatePatientPortalLink } from '@/lib/patientPortal'
 import { fallbackClinicSettings, getConsultationSlotError, normalizeWorkingSchedule, registrationSchema } from '@/lib/registration'
+import { sendWhatsAppNotification } from '@/lib/whatsapp'
 
 export const dynamic = 'force-dynamic'
 
@@ -189,6 +191,43 @@ export async function POST(request: NextRequest) {
     const result = Array.isArray(data) ? data[0] : data
     if (!result) throw new Error('Registration did not return a result')
 
+    let portalUrl: string | null = null
+    try {
+      const { data: visitRow, error: visitError } = await admin
+        .from('visits')
+        .select('patient_id')
+        .eq('id', result.visit_id)
+        .single()
+
+      if (visitError) throw visitError
+
+      const portalLink = await getOrCreatePatientPortalLink(visitRow.patient_id)
+      portalUrl = buildPatientPortalUrl(portalLink.token, request.nextUrl.origin)
+
+      await sendWhatsAppNotification({
+        patientId: visitRow.patient_id,
+        notificationType: 'registration_confirmation',
+        templateName: process.env.REGISTRATION_CONFIRMATION_TEMPLATE_NAME,
+        payload: {
+          event_type: 'registration_confirmation',
+          token_number: result.token_number,
+          visit_id: result.visit_id,
+          confirmation_token: result.confirmation_token,
+          consultation_date: input.consultation_date,
+          consultation_time: input.consultation_time,
+          portal_link_id: portalLink.id,
+          portal_url: portalUrl,
+        },
+        bodyParameters: [
+          result.token_number,
+          `${input.consultation_date} ${input.consultation_time}`,
+          portalUrl,
+        ],
+      })
+    } catch (whatsappError) {
+      console.error('Registration WhatsApp notification failed', whatsappError instanceof Error ? whatsappError.message : 'Unknown error')
+    }
+
     return NextResponse.json(
       {
         token_number: result.token_number,
@@ -196,6 +235,7 @@ export async function POST(request: NextRequest) {
         patient_name: result.patient_name,
         confirmation_ref: result.confirmation_token,
         duplicate_registration: result.duplicate_registration,
+        portal_url: portalUrl,
       },
       { status: result.duplicate_registration ? 200 : 201, headers: { 'Cache-Control': 'no-store' } }
     )

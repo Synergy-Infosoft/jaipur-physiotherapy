@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { buildPatientPortalUrl, getOrCreatePatientPortalLink } from '@/lib/patientPortal'
 import { sendWhatsAppNotification } from '@/lib/whatsapp'
 
 export const dynamic = 'force-dynamic'
@@ -149,6 +150,9 @@ export async function POST(request: NextRequest) {
     const packageRow = Array.isArray(rpcData) ? rpcData[0] : rpcData
     if (!packageRow?.id) throw new Error('Package RPC did not return a package')
 
+    const portalLink = await getOrCreatePatientPortalLink(packageRow.patient_id)
+    const portalUrl = buildPatientPortalUrl(portalLink.token, request.nextUrl.origin)
+
     const whatsapp = await sendWhatsAppNotification({
       patientId: packageRow.patient_id,
       notificationType: 'payment_receipt',
@@ -161,16 +165,31 @@ export async function POST(request: NextRequest) {
         total_sessions: packageRow.total_sessions,
         quoted_amount: packageRow.quoted_amount,
         balance: packageRow.quoted_amount,
+        portal_url: portalUrl,
       },
       bodyParameters: [
         packageRow.package_name,
         packageRow.total_sessions,
         packageRow.quoted_amount,
         packageRow.quoted_amount,
+        portalUrl,
       ],
     })
 
-    return jsonResponse({ package: packageRow, whatsapp }, 201)
+    const portalWhatsapp = await sendWhatsAppNotification({
+      patientId: packageRow.patient_id,
+      notificationType: 'portal_link',
+      templateName: process.env.PORTAL_LINK_TEMPLATE_NAME,
+      payload: {
+        event_type: 'portal_link_created',
+        patient_package_id: packageRow.id,
+        portal_link_id: portalLink.id,
+        portal_url: portalUrl,
+      },
+      bodyParameters: [portalUrl],
+    })
+
+    return jsonResponse({ package: packageRow, portal_url: portalUrl, whatsapp, portal_whatsapp: portalWhatsapp }, 201)
   } catch (error) {
     console.error('Package creation failed', error instanceof Error ? error.message : 'Unknown error')
     return jsonResponse({ error: 'Unable to create package' }, 503)

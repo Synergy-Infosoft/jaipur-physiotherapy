@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
-const staffRoles = ['receptionist', 'doctor'] as const
+const staffRoles = ['receptionist', 'doctor', 'therapist'] as const
 
 const createStaffSchema = z.object({
   full_name: z.string().trim().min(2, 'Full name is required').max(80),

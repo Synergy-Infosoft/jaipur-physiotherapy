@@ -72,11 +72,12 @@ const settingsSections = [
 ] as const
 
 type SettingsSectionId = (typeof settingsSections)[number]['id']
-type StaffCreatableRole = Extract<UserRole, 'receptionist' | 'doctor'>
+type StaffCreatableRole = Extract<UserRole, 'receptionist' | 'doctor' | 'therapist'>
 
 const staffRoleOptions: { value: StaffCreatableRole; label: string }[] = [
   { value: 'receptionist', label: 'Receptionist' },
   { value: 'doctor', label: 'Doctor' },
+  { value: 'therapist', label: 'Therapist' },
 ]
 
 const emptySettings: ClinicSettings = {
@@ -773,7 +774,7 @@ export default function SettingsPage() {
                       <UserPlus className="w-5 h-5 text-[var(--primary)]" />
                       <div>
                         <h2 className="text-base font-semibold text-slate-900">Staff Users</h2>
-                        <p className="text-xs text-slate-500">Create receptionist and doctor login accounts. Public signup remains closed.</p>
+                        <p className="text-xs text-slate-500">Create receptionist, doctor, and therapist login accounts. Public signup remains closed.</p>
                       </div>
                     </div>
                     <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
@@ -829,7 +830,7 @@ export default function SettingsPage() {
                       <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center">
                         <UserPlus className="h-10 w-10 text-slate-300 mx-auto mb-3" />
                         <p className="text-sm font-semibold text-slate-800">No staff users found</p>
-                        <p className="text-xs text-slate-500 mt-1">Create receptionist and doctor logins above.</p>
+                        <p className="text-xs text-slate-500 mt-1">Create receptionist, doctor, and therapist logins above.</p>
                       </div>
                     ) : staffUsers.map((staff) => {
                       const isCurrentUser = staff.id === profile?.id
