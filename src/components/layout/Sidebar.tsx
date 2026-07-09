@@ -33,6 +33,10 @@ const navItems = [
   { label: 'QR Code', icon: QrCode, path: '/qr-code' },
 ]
 
+const therapistNavItems = [
+  { label: 'Therapist', icon: Activity, path: '/therapist' },
+]
+
 export function Sidebar() {
   const { profile, logout } = useAuth()
   const { settings } = useBranding()
@@ -41,6 +45,7 @@ export function Sidebar() {
   const toast = useToast()
   const [collapsed, setCollapsed] = useState(false)
   const websiteUrl = settings.website_url.trim()
+  const primaryNavItems = profile?.role === 'therapist' ? therapistNavItems : navItems
 
   const handleLogout = async () => {
     await logout()
@@ -74,7 +79,7 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 py-4 overflow-y-auto">
         <div className="space-y-0.5 px-2">
-          {navItems.map(({ label, icon: Icon, path }) => {
+          {primaryNavItems.map(({ label, icon: Icon, path }) => {
             const isActive = pathname === path || (pathname?.startsWith(path + '/') ?? false)
             return (
               <Link
@@ -117,28 +122,6 @@ export function Sidebar() {
               {collapsed && (
                 <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg">
                   Follow-up
-                </div>
-              )}
-            </Link>
-          )}
-
-          {profile?.role === 'therapist' && (
-            <Link
-              href="/therapist"
-              title={collapsed ? 'Therapist' : undefined}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group relative',
-                pathname === '/therapist'
-                  ? 'bg-white/10 text-white border-l-2 border-[var(--primary)]'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5',
-                collapsed && 'justify-center px-0 border-l-0'
-              )}
-            >
-              <Activity className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && <span className="text-sm font-medium">Therapist</span>}
-              {collapsed && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg">
-                  Therapist
                 </div>
               )}
             </Link>

@@ -54,6 +54,7 @@ interface DetailItemProps {
 
 type PackagePaymentForm = {
   target: 'new' | string
+  therapyType: 'package' | 'single'
   visitId: string
   packageName: string
   totalSessions: string
@@ -64,6 +65,7 @@ type PackagePaymentForm = {
 
 const emptyPackagePaymentForm: PackagePaymentForm = {
   target: 'new',
+  therapyType: 'package',
   visitId: '',
   packageName: '',
   totalSessions: '1',
@@ -224,8 +226,9 @@ export default function PatientProfilePage() {
     setForm((current) => ({
       ...current,
       target: 'new',
+      therapyType: visit.visit_type === 'follow_up' ? 'single' : 'package',
       visitId: visit.id,
-      packageName: visit.visit_type === 'follow_up' ? 'Follow-up session' : 'Treatment package',
+      packageName: visit.visit_type === 'follow_up' ? 'Single-time therapy' : 'Treatment package',
       totalSessions: visit.visit_type === 'follow_up' ? '1' : current.totalSessions || '1',
     }))
   }
@@ -255,16 +258,18 @@ export default function PatientProfilePage() {
       let visitId = form.visitId || null
 
       if (form.target === 'new') {
-        const totalSessions = Number(form.totalSessions)
+        const isSingleTimeTherapy = form.therapyType === 'single'
+        const totalSessions = isSingleTimeTherapy ? 1 : Number(form.totalSessions)
         const quotedAmount = Number(form.quotedAmount)
-        if (!form.packageName.trim()) throw new Error('Package name is required')
+        const packageName = form.packageName.trim() || (isSingleTimeTherapy ? 'Single-time therapy' : '')
+        if (!packageName) throw new Error('Package name is required')
         if (!Number.isInteger(totalSessions) || totalSessions <= 0) throw new Error('Total sessions must be at least 1')
         if (!Number.isFinite(quotedAmount) || quotedAmount < 0) throw new Error('Quoted amount must be 0 or greater')
 
         const createdPackage = await dataService.createPatientPackage({
           patient_id: patient.id,
           visit_id: visitId,
-          package_name: form.packageName.trim(),
+          package_name: packageName,
           total_sessions: totalSessions,
           quoted_amount: quotedAmount,
         })
@@ -534,12 +539,43 @@ export default function PatientProfilePage() {
 
                   {form.target === 'new' && (
                     <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <span className="text-sm font-semibold text-slate-700">Therapy type</span>
+                        <div className="mt-1 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
+                          {([
+                            ['package', 'Package'],
+                            ['single', 'Single-time therapy'],
+                          ] as const).map(([value, label]) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => setForm((current) => ({
+                                ...current,
+                                therapyType: value,
+                                totalSessions: value === 'single' ? '1' : current.totalSessions,
+                                packageName: value === 'single' && !current.packageName.trim()
+                                  ? 'Single-time therapy'
+                                  : current.packageName,
+                              }))}
+                              className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+                                form.therapyType === value
+                                  ? 'bg-white text-[var(--primary)] shadow-sm'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                       <label className="block">
-                        <span className="text-sm font-semibold text-slate-700">Package name</span>
+                        <span className="text-sm font-semibold text-slate-700">
+                          {form.therapyType === 'single' ? 'Therapy description' : 'Package name'}
+                        </span>
                         <input
                           value={form.packageName}
                           onChange={(event) => setForm((current) => ({ ...current, packageName: event.target.value }))}
-                          placeholder="Treatment package or one-time visit"
+                          placeholder={form.therapyType === 'single' ? 'Single-time therapy' : 'Treatment package'}
                           className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
                           required
                         />
@@ -553,7 +589,8 @@ export default function PatientProfilePage() {
                             step="1"
                             value={form.totalSessions}
                             onChange={(event) => setForm((current) => ({ ...current, totalSessions: event.target.value }))}
-                            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                            disabled={form.therapyType === 'single'}
+                            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 disabled:bg-slate-100 disabled:text-slate-500"
                             required
                           />
                         </label>

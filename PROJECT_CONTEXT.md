@@ -64,9 +64,19 @@ Phase summary:
 - Phase 6: daily follow-up task detection through Supabase Edge Function + cron.
 - Phase 7: read-only admin master report.
 
+Post-Phase 7 therapist workflow update:
+
+- Therapist role navigation is intentionally minimal and should not show QR, invoice, cash reconciliation, or broader admin options.
+- `/therapist` uses compact active-patient cards that open a scrollable therapy record modal.
+- The modal shows current package, package history, single-time therapy records, and a calendar-style session grid.
+- Single-time therapy is represented as a normal `patient_packages` row with `total_sessions = 1`; no separate one-time-session table exists.
+- `mark_session_atomic` now enforces a maximum of two non-voided session rows per package per calendar day.
+
 Latest verification:
 
 - `npm run check` passed after Phase 7 and again during the post-WhatsApp/portal status check.
+- `npm run typecheck` and `npm run lint` passed after the therapist workflow update; production build should be rerun after any further therapist UI edits.
+- Linked Supabase DB has migration `20260709143000_limit_package_sessions_per_day.sql` applied, and `pg_get_functiondef` verification confirmed `PACKAGE_DAILY_SESSION_LIMIT_REACHED` is present in `mark_session_atomic`.
 - Linked Supabase DB had Phase 1-6 source tables available for the report.
 - Phase 6 Edge Function `detect-follow-up-tasks` was deployed and cron job `detect-follow-up-tasks-daily` was active.
 - Live Hostinger temporary domain is reachable and unauthenticated `/` redirects to `/login`.

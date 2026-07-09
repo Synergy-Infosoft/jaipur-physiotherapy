@@ -212,3 +212,30 @@ This file records major project changes, database migrations, verification steps
 
 ### Documentation
 - Updated `PROJECT_CONTEXT.md` with the latest WhatsApp template placeholder names, public webhook middleware note, temporary Hostinger domain, portal magic-link URL behavior, and current WhatsApp testing failure modes.
+
+## 2026-07-09 - Therapist dashboard simplification and session record modal
+
+### Navigation
+- Simplified therapist role navigation so therapists only see the Therapist workspace in desktop and mobile navigation.
+- Redirected therapist users away from the broader `/dashboard` page to `/therapist`.
+
+### Therapist Workflow
+- Reworked `src/app/(dashboard)/therapist/page.tsx` into compact active-patient cards.
+- Added a patient therapy record modal with current package summary, package history, single-time therapy history, and a calendar-style session grid.
+- Enriched `GET /api/therapist/sessions` with per-patient package history, session rows, and `today_sessions` counts.
+- Preserved the no-invoice/no-payment rule for therapist-facing package/session UI.
+
+### Admin Package Form
+- Added an explicit therapy-type toggle on the patient detail package/payment form.
+- Single-time therapy is stored as a normal `patient_packages` row with `total_sessions = 1`.
+
+### Database
+- Added and applied migration `supabase/migrations/20260709143000_limit_package_sessions_per_day.sql`.
+- Recreated `mark_session_atomic` with `PACKAGE_DAILY_SESSION_LIMIT_REACHED` when a package already has two non-voided sessions on `current_date`.
+
+### Verification
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `supabase db push --linked --dry-run` showed only `20260709143000_limit_package_sessions_per_day.sql`.
+- `supabase db push --linked` applied the migration.
+- `supabase db query --linked` confirmed the live `mark_session_atomic` definition contains `PACKAGE_DAILY_SESSION_LIMIT_REACHED`.

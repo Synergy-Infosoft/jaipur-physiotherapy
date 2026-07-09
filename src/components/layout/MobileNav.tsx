@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, ListOrdered, Users, Receipt, QrCode } from 'lucide-react'
+import { Activity, LayoutDashboard, ListOrdered, Users, Receipt, QrCode } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/context/AuthContext'
 
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
@@ -13,13 +14,19 @@ const navItems = [
   { label: 'QR', icon: QrCode, path: '/qr-code' },
 ]
 
+const therapistNavItems = [
+  { label: 'Therapist', icon: Activity, path: '/therapist' },
+]
+
 export function MobileNav() {
   const pathname = usePathname()
+  const { profile } = useAuth()
+  const primaryNavItems = profile?.role === 'therapist' ? therapistNavItems : navItems
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 print:hidden">
       <div className="flex">
-        {navItems.map(({ label, icon: Icon, path }) => {
+        {primaryNavItems.map(({ label, icon: Icon, path }) => {
           const isActive = pathname === path || (pathname?.startsWith(path + '/') ?? false)
           return (
             <Link

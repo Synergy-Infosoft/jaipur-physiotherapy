@@ -60,25 +60,108 @@ export async function GET() {
       patient_id: string
       package_name: string
       total_sessions: number
+      status: 'active' | 'completed' | 'cancelled'
+      created_at: string
       patient?: { id: string; full_name: string; phone: string | null } | null
     }>
-    const packageIds = packageRows.map((row) => row.id)
+    const patientIds = Array.from(new Set(packageRows.map((row) => row.patient_id)))
 
-    const { data: sessions, error: sessionsError } = packageIds.length > 0
+    const { data: packageHistory, error: packageHistoryError } = patientIds.length > 0
+      ? await admin
+        .from('patient_packages')
+        .select('id, patient_id, package_name, total_sessions, status, created_at')
+        .in('patient_id', patientIds)
+        .order('created_at', { ascending: true })
+      : { data: [], error: null }
+
+    if (packageHistoryError) throw packageHistoryError
+
+    const historyRows = (packageHistory ?? []) as Array<{
+      id: string
+      patient_id: string
+      package_name: string
+      total_sessions: number
+      status: 'active' | 'completed' | 'cancelled'
+      created_at: string
+    }>
+    const historyPackageIds = historyRows.map((row) => row.id)
+
+    const { data: sessions, error: sessionsError } = historyPackageIds.length > 0
       ? await admin
         .from('package_sessions')
-        .select('patient_package_id, is_voided, marked_at')
-        .in('patient_package_id', packageIds)
+        .select('id, patient_package_id, session_date, marked_at, is_voided, notes')
+        .in('patient_package_id', historyPackageIds)
+        .order('marked_at', { ascending: true })
       : { data: [], error: null }
 
     if (sessionsError) throw sessionsError
 
-    const sessionsByPackage = new Map<string, { used: number; last: string | null }>()
-    for (const session of (sessions ?? []) as Array<{ patient_package_id: string; is_voided: boolean; marked_at: string }>) {
-      const current = sessionsByPackage.get(session.patient_package_id) ?? { used: 0, last: null }
-      if (!session.is_voided) current.used += 1
-      if (!current.last || session.marked_at > current.last) current.last = session.marked_at
+    const todayKey = new Date().toISOString().slice(0, 10)
+    const sessionsByPackage = new Map<string, {
+      used: number
+      last: string | null
+      today: number
+      sessions: Array<{
+        id: string
+        patient_package_id: string
+        session_date: string
+        marked_at: string
+        is_voided: boolean
+        notes: string | null
+      }>
+    }>()
+
+    for (const session of (sessions ?? []) as Array<{
+      id: string
+      patient_package_id: string
+      session_date: string
+      marked_at: string
+      is_voided: boolean
+      notes: string | null
+    }>) {
+      const current = sessionsByPackage.get(session.patient_package_id) ?? { used: 0, last: null, today: 0, sessions: [] }
+      current.sessions.push(session)
+      if (!session.is_voided) {
+        current.used += 1
+        if (session.session_date === todayKey) current.today += 1
+        if (!current.last || session.marked_at > current.last) current.last = session.marked_at
+      }
       sessionsByPackage.set(session.patient_package_id, current)
+    }
+
+    const historyByPatient = new Map<string, Array<{
+      id: string
+      package_name: string
+      total_sessions: number
+      status: 'active' | 'completed' | 'cancelled'
+      created_at: string
+      sessions_used: number
+      sessions_remaining: number
+      last_session_at: string | null
+      sessions: Array<{
+        id: string
+        patient_package_id: string
+        session_date: string
+        marked_at: string
+        is_voided: boolean
+        notes: string | null
+      }>
+    }>>()
+
+    for (const row of historyRows) {
+      const counts = sessionsByPackage.get(row.id) ?? { used: 0, last: null, today: 0, sessions: [] }
+      const item = {
+        id: row.id,
+        package_name: row.package_name,
+        total_sessions: row.total_sessions,
+        status: row.status,
+        created_at: row.created_at,
+        sessions_used: counts.used,
+        sessions_remaining: Math.max(row.total_sessions - counts.used, 0),
+        last_session_at: counts.last,
+        sessions: counts.sessions,
+      }
+      historyByPatient.set(row.patient_id, [...(historyByPatient.get(row.patient_id) ?? []), item])
     }
 
     return jsonResponse({
@@ -94,6 +177,8 @@ export async function GET() {
           sessions_used: counts.used,
           sessions_remaining: Math.max(row.total_sessions - counts.used, 0),
           last_session_at: counts.last,
+          today_sessions: 'today' in counts ? counts.today : 0,
+          package_history: historyByPatient.get(row.patient_id) ?? [],
         }
       }),
     })
@@ -129,6 +214,7 @@ export async function POST(request: NextRequest) {
     if (rpcError) {
       if (/ACTIVE_PACKAGE_NOT_FOUND/i.test(rpcError.message)) return jsonResponse({ error: 'Active package not found' }, 404)
       if (/PACKAGE_SESSIONS_EXHAUSTED/i.test(rpcError.message)) return jsonResponse({ error: 'No sessions remaining for this package' }, 409)
+      if (/PACKAGE_DAILY_SESSION_LIMIT_REACHED/i.test(rpcError.message)) return jsonResponse({ error: 'This package already has 2 sessions marked today' }, 409)
       if (/THERAPIST_ACCESS_REQUIRED/i.test(rpcError.message)) return jsonResponse({ error: 'Therapist access required' }, 403)
       throw rpcError
     }

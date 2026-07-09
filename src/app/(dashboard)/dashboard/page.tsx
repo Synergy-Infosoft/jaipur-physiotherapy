@@ -97,6 +97,7 @@ export default function DashboardPage() {
   const toast = useToast()
   const { profile } = useAuth()
   const canManageBilling = profile?.role === 'admin' || profile?.role === 'receptionist'
+  const canManageQueue = profile?.role === 'admin' || profile?.role === 'receptionist' || profile?.role === 'doctor'
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [visits, setVisits] = useState<Visit[]>([])
   const [doctors, setDoctors] = useState<Doctor[]>([])
@@ -138,6 +139,12 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
+    if (profile?.role === 'therapist') {
+      router.replace('/therapist')
+      setLoading(false)
+      return
+    }
+
     loadData()
     const interval = setInterval(loadData, 30000)
     const handleChange = () => { loadData() }
@@ -146,7 +153,7 @@ export default function DashboardPage() {
       clearInterval(interval)
       unsub()
     }
-  }, [loadData])
+  }, [loadData, profile?.role, router])
 
   const handleStatusChange = async (visitId: string, status: Visit['status']) => {
     try {
@@ -251,23 +258,37 @@ export default function DashboardPage() {
       ]
     : []
 
+  if (profile?.role === 'therapist') {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center p-10 text-sm text-slate-500">
+          Opening therapist sessions...
+        </div>
+      </DashboardLayout>
+    )
+  }
+
   return (
     <DashboardLayout>
       <div className="p-4 md:p-6">
         <PageHeader
           title="Dashboard"
           description={`Today — ${format(new Date(), 'EEEE, d MMMM yyyy')}`}
-          actions={
+          actions={(canManageBilling || canManageQueue) ? (
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => setShowReconciliationModal(true)} size="sm">
-                Close Shift
-              </Button>
-              <Button onClick={() => setShowAddVisit(true)} size="sm">
-                <Plus className="w-4 h-4" />
-                Add Patient
-              </Button>
+              {canManageBilling && (
+                <Button variant="outline" onClick={() => setShowReconciliationModal(true)} size="sm">
+                  Close Shift
+                </Button>
+              )}
+              {canManageQueue && (
+                <Button onClick={() => setShowAddVisit(true)} size="sm">
+                  <Plus className="w-4 h-4" />
+                  Add Patient
+                </Button>
+              )}
             </div>
-          }
+          ) : undefined}
         />
 
         {/* Stats Cards */}
@@ -313,10 +334,12 @@ export default function DashboardPage() {
               <p className="text-sm text-slate-500 max-w-xs">
                 QR code registrations will appear here in real-time. You can also add patients manually.
               </p>
-              <Button onClick={() => setShowAddVisit(true)} size="sm" className="mt-4">
-                <Plus className="w-4 h-4" />
-                Add First Patient
-              </Button>
+              {canManageQueue && (
+                <Button onClick={() => setShowAddVisit(true)} size="sm" className="mt-4">
+                  <Plus className="w-4 h-4" />
+                  Add First Patient
+                </Button>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -400,6 +423,7 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {canManageBilling && (
         <div className="card overflow-hidden mt-6">
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
             <div>
@@ -462,12 +486,14 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Recent Overrides — admin only */}
         {profile?.role === 'admin' && <RecentPaymentMethodOverrides />}
       </div>
 
       {/* Modals */}
+      {canManageQueue && (
       <AddVisitDialog
         isOpen={showAddVisit}
         onClose={() => setShowAddVisit(false)}
@@ -477,6 +503,7 @@ export default function DashboardPage() {
         }}
         doctors={doctors}
       />
+      )}
 
       <ConfirmDialog
         isOpen={!!cancelVisitId}
@@ -487,6 +514,7 @@ export default function DashboardPage() {
         confirmLabel="Yes, Cancel Visit"
       />
 
+      {canManageBilling && (
       <Modal
         isOpen={showReconciliationModal}
         onClose={() => {
@@ -548,6 +576,7 @@ export default function DashboardPage() {
           </div>
         </form>
       </Modal>
+      )}
     </DashboardLayout>
   )
 }

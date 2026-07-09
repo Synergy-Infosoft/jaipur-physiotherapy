@@ -288,6 +288,27 @@ export interface PackageSession {
   notes: string | null
 }
 
+export interface TherapistSessionRecord {
+  id: string
+  patient_package_id: string
+  session_date: string
+  marked_at: string
+  is_voided: boolean
+  notes: string | null
+}
+
+export interface TherapistPackageHistoryItem {
+  id: string
+  package_name: string
+  total_sessions: number
+  status: PackageStatus
+  created_at: string
+  sessions_used: number
+  sessions_remaining: number
+  last_session_at: string | null
+  sessions: TherapistSessionRecord[]
+}
+
 export interface MarkSessionResult {
   session_id: string
   patient_package_id: string
@@ -314,6 +335,8 @@ export interface TherapistActivePackage {
   sessions_used: number
   sessions_remaining: number
   last_session_at: string | null
+  today_sessions: number
+  package_history: TherapistPackageHistoryItem[]
 }
 
 export interface PatientPortalPayment {
