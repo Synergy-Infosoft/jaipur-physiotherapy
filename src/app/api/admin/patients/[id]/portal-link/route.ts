@@ -50,7 +50,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if (!patient) return jsonResponse({ error: 'Patient not found' }, 404)
 
     const portalLink = await regeneratePatientPortalLink(id)
-    const portalUrl = buildPatientPortalUrl(portalLink.token, request.nextUrl.origin)
+    const portalUrl = buildPatientPortalUrl(portalLink.token)
 
     return jsonResponse({ portal_link: portalLink, portal_url: portalUrl }, 201)
   } catch (error) {
