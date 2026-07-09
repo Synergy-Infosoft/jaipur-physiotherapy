@@ -26,6 +26,9 @@ import type {
   MarkSessionResult,
   PatientPortalOverview,
   TherapistActivePackage,
+  FollowUpOutcome,
+  FollowUpStatus,
+  FollowUpTask,
 } from '../types'
 import type { Database } from '../types/database'
 
@@ -57,7 +60,7 @@ export interface CreateStaffUserPayload {
   full_name: string
   email: string
   password: string
-  role: Extract<UserRole, 'receptionist' | 'doctor' | 'therapist'>
+  role: Extract<UserRole, 'receptionist' | 'doctor' | 'therapist' | 'follow_up_agent'>
 }
 
 export interface CreatePatientPackagePayload {
@@ -97,6 +100,13 @@ export interface OverridePaymentMethodPayload {
 export interface CloseCashShiftPayload {
   counted_cash: number
   notes?: string | null
+}
+
+export interface UpdateFollowUpTaskPayload {
+  id: string
+  status: FollowUpStatus
+  outcome?: FollowUpOutcome | null
+  outcome_notes?: string | null
 }
 
 // ─── Patients ─────────────────────────────────────────────────────────────────
@@ -577,6 +587,35 @@ export async function regeneratePatientPortalLink(patientId: string): Promise<{ 
   }
 
   return { portal_url: result.portal_url as string }
+}
+
+export async function getFollowUpTasks(): Promise<FollowUpTask[]> {
+  const response = await fetch('/api/follow-up/tasks', {
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to load follow-up tasks')
+  }
+
+  return result.tasks as FollowUpTask[]
+}
+
+export async function updateFollowUpTask(payload: UpdateFollowUpTaskPayload): Promise<FollowUpTask> {
+  const response = await fetch('/api/follow-up/tasks', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to update follow-up task')
+  }
+
+  return result.task as FollowUpTask
 }
 
 export async function getDoctors(): Promise<Doctor[]> {

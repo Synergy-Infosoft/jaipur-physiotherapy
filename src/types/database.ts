@@ -367,6 +367,56 @@ export interface Database {
           },
         ]
       }
+      follow_up_tasks: {
+        Row: {
+          id: string
+          patient_id: string
+          patient_package_id: string
+          reason: 'missed_expected_session' | 'discontinued_early'
+          assigned_to: string | null
+          status: 'pending' | 'contacted' | 'resolved'
+          outcome: 'rescheduled' | 'discontinued_reason' | 'no_answer' | null
+          outcome_notes: string | null
+          created_at: string
+          resolved_at: string | null
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          patient_package_id: string
+          reason: 'missed_expected_session' | 'discontinued_early'
+          assigned_to?: string | null
+          status?: 'pending' | 'contacted' | 'resolved'
+          outcome?: 'rescheduled' | 'discontinued_reason' | 'no_answer' | null
+          outcome_notes?: string | null
+          created_at?: string
+          resolved_at?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['follow_up_tasks']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'follow_up_tasks_patient_id_fkey'
+            columns: ['patient_id']
+            isOneToOne: false
+            referencedRelation: 'patients'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'follow_up_tasks_patient_package_id_fkey'
+            columns: ['patient_package_id']
+            isOneToOne: false
+            referencedRelation: 'patient_packages'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'follow_up_tasks_assigned_to_fkey'
+            columns: ['assigned_to']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       charge_presets: Table<{
         id: string
         name: string
@@ -528,6 +578,12 @@ export interface Database {
           notes: string | null
           closed_by: string | null
           created_at: string
+        }>
+      }
+      detect_follow_up_tasks_atomic: {
+        Args: Record<PropertyKey, never>
+        Returns: Array<{
+          inserted_count: number
         }>
       }
       mark_session_atomic: {

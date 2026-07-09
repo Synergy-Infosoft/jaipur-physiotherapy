@@ -10,6 +10,24 @@ export type LedgerPaymentMethod = 'cash' | 'online'
 
 export type PackageStatus = 'active' | 'completed' | 'cancelled'
 
+export type FollowUpReason = 'missed_expected_session' | 'discontinued_early'
+export type FollowUpStatus = 'pending' | 'contacted' | 'resolved'
+export type FollowUpOutcome = 'rescheduled' | 'discontinued_reason' | 'no_answer'
+
+export interface FollowUpTask {
+  id: string
+  patient_id: string
+  patient_package_id: string
+  reason: FollowUpReason
+  assigned_to: string | null
+  status: FollowUpStatus
+  outcome: FollowUpOutcome | null
+  outcome_notes: string | null
+  created_at: string
+  resolved_at: string | null
+  patient?: Patient | null
+  patient_package?: PatientPackage | null
+}
 export type WhatsAppNotificationType =
   | 'registration_confirmation'
   | 'payment_receipt'

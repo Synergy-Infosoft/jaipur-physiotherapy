@@ -150,3 +150,37 @@ This file records major project changes, database migrations, verification steps
 - `npm run test -- src/lib/registration.test.ts` passed.
 - `npm run build` passed.
 - `supabase db push --linked --dry-run` confirmed the remote database is up to date after applying Phase 3, Phase 4, and Phase 5 migrations.
+
+## 2026-07-09 - Phase 6 follow-up tasks
+
+### Database
+- Added migration: `supabase/migrations/20260709133000_follow_up_tasks.sql`.
+- Added `follow_up_tasks` for missed expected sessions and early discontinuation follow-up work.
+- Added `detect_follow_up_tasks_atomic()` to create one open missed-session task per active package when expected sessions exceed non-voided delivered sessions.
+- Scheduled the daily `detect-follow-up-tasks-daily` cron job through `pg_cron` + `pg_net`, with URL/token values read from Supabase Vault.
+- Confirmed the remote cron job is active and the detection RPC currently inserts `0` tasks against existing data.
+
+### Edge Function
+- Added `supabase/functions/detect-follow-up-tasks` to call the detection RPC using the service-role key.
+- Added `FOLLOW_UP_CRON_SECRET` support so hosted cron calls can be protected by an `x-cron-secret` header.
+- Deployed the Edge Function to the linked Supabase project and confirmed a request without the secret is rejected with HTTP 401.
+
+### Backend
+- Added `GET/PATCH /api/follow-up/tasks` for admin and follow-up agent roles.
+- Follow-up agents only see and update tasks assigned to them; admins can see and update all tasks.
+- Added computed `sessions_used` enrichment from `package_sessions` so the UI does not store session counters.
+
+### Frontend
+- Added the `/follow-up` dashboard page for admin and follow-up agent users.
+- Added a role-gated Follow-up sidebar item.
+- Extended staff creation to support `follow_up_agent` users.
+
+### Env Vars
+- Added placeholder-only `FOLLOW_UP_CRON_SECRET` to `.env.example`.
+- `.env.local` remains gitignored; the real scheduled-job secret was configured in Supabase secrets/Vault only.
+
+### Verification
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `npm run build` passed.
+- `supabase db push --linked --dry-run` confirmed the remote database is up to date after applying the Phase 6 migration.
