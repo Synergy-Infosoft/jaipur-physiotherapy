@@ -2,7 +2,15 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 const publicPaths = new Set(['/login', '/register', '/confirmation'])
-const publicApiPrefixes = ['/api/register', '/api/public-config', '/api/registration-status', '/api/portal']
+// Allow public access to webhook endpoints so external services (Meta) can
+// perform verification callbacks without authentication.
+const publicApiPrefixes = [
+  '/api/register',
+  '/api/public-config',
+  '/api/registration-status',
+  '/api/portal',
+  '/api/webhooks',
+]
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })
