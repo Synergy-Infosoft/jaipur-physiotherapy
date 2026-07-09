@@ -145,4 +145,8 @@ This file records major project changes, database migrations, verification steps
   - `SESSION_REMINDER_TEMPLATE_NAME`
 
 ### Verification
-- Pending in this working session: run `npm run typecheck`, `npm run lint`, `npm run build`, and the touched registration test.
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `npm run test -- src/lib/registration.test.ts` passed.
+- `npm run build` passed.
+- `supabase db push --linked --dry-run` confirmed the remote database is up to date after applying Phase 3, Phase 4, and Phase 5 migrations.
