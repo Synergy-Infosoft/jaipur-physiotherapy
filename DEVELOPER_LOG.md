@@ -201,3 +201,9 @@ This file records major project changes, database migrations, verification steps
 ### Verification
 - `npm run check` passed.
 - `supabase db query --linked` confirmed the Phase 1-6 source tables used by the report exist on the linked database.
+
+## 2026-07-09 - Project context handoff refresh
+
+### Documentation
+- Updated `PROJECT_CONTEXT.md` through Phase 7.
+- Added current phase status, recent commits, Supabase/WhatsApp/Edge Function setup notes, expanded env var guidance, new route map entries, updated roles, new database tables/RPCs, anti-fraud invariants, and read-first file guidance for future developers.

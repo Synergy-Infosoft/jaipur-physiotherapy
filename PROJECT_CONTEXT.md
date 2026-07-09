@@ -1,28 +1,72 @@
 # Project Context: Clinic CRM / Clinic Management System
 
-Last updated: 2026-07-07
+Last updated: 2026-07-09
 
 This document is a technical handoff for another developer or AI agent. It explains what this project is, why it exists, how it is structured, what services it uses, and which files/routes matter most.
 
 ## 1. What this project is
 
-This is a multi-page clinic appointment, reception, patient, visit, and billing management system built with Next.js and Supabase.
+This is a multi-page clinic appointment, reception, patient, visit, treatment-package, payment-ledger, follow-up, reporting, and patient-portal system built with Next.js and Supabase.
 
 It is intended to be sold or deployed as a product for multiple clinics. A clinic can customize branding, logo, theme colors, website link, doctor list, and registration hours from the admin settings page.
 
-The product has two main surfaces:
+The product has four main surfaces:
 
 1. Public patient registration
    - Patients scan a QR code or open `/register`.
    - They fill a 3-step mobile-friendly form.
    - They select a consultation date/time from the clinic's configured schedule.
+   - They choose the initial payment method, cash or online, with no default preselected.
    - The system creates/updates the patient and creates a visit/token.
    - The confirmation page shows the token and queue status.
 
 2. Staff dashboard
-   - Admin, receptionist, and doctor users log in through Supabase Auth.
-   - Staff manage the daily queue, patients, visits, invoices, QR code, and settings.
+   - Admin, receptionist, doctor, therapist, and follow-up agent users log in through Supabase Auth.
+   - Staff manage the daily queue, patients, visits, packages, payments, sessions, follow-ups, reports, QR code, and settings according to role.
    - Admin can create/delete staff users and manage tenant settings.
+
+3. Public patient portal
+   - Patients can open a tokenized `/portal/[token]` link.
+   - The portal shows package balances, sessions used/remaining, and payment history.
+   - Portal links can be regenerated/revoked by admin workflow.
+
+4. Anti-fraud financial/reporting layer
+   - Billing is based on append-only treatment packages and payment transactions.
+   - Financial records are never edited or deleted; corrections are inserted as new rows.
+   - Payment method is locked at registration and can only be changed by admin override with a required reason.
+   - WhatsApp notifications are logged for registrations, packages, portal links, sessions, and payments.
+   - Admin master report reads from all Phase 1-6 tables and writes nothing.
+
+## 1.1 Current phase status
+
+Implemented and pushed through Phase 7.
+
+Recent commits:
+
+```text
+e32fad3 feat: add admin master report
+62c8727 feat: add follow-up task workflow
+083ae42 docs: update phase verification log
+afdbd57 feat: add session portal workflow
+bdbfe06 feat: add cash reconciliation workflow
+3816ac0 feat: add payment method lock and admin override
+7037b13 feat: add whatsapp payment notifications
+```
+
+Phase summary:
+
+- Phase 1/2 baseline: public registration, queue, patients, invoices, settings, branding, Supabase auth/database.
+- Phase 3: payment method lock at registration plus admin-only override reason trail.
+- Phase 4: cash reconciliation workflow.
+- Phase 5: therapist session check-in and patient portal.
+- Phase 6: daily follow-up task detection through Supabase Edge Function + cron.
+- Phase 7: read-only admin master report.
+
+Latest verification:
+
+- `npm run check` passed after Phase 7.
+- Linked Supabase DB had Phase 1-6 source tables available for the report.
+- Phase 6 Edge Function `detect-follow-up-tasks` was deployed and cron job `detect-follow-up-tasks-daily` was active.
 
 ## 2. Problem it solves
 
@@ -101,8 +145,15 @@ Used for:
 - patients;
 - visits and tokens;
 - invoices and charge presets;
+- append-only patient packages and payment transactions;
+- cash reconciliation;
+- WhatsApp notification logs;
+- therapist package sessions;
+- public patient portal links;
+- follow-up task queue;
+- daily missed-session follow-up detection through Edge Functions, `pg_cron`, `pg_net`, and Vault;
 - realtime visit updates;
-- security-definer RPC functions for atomic registration and invoice generation.
+- security-definer RPC functions for atomic registration, invoice generation, payment/package/session flows, payment method overrides, and follow-up detection.
 
 Important Supabase files:
 
@@ -111,8 +162,36 @@ Important Supabase files:
 - Service-role admin client: `src/lib/supabase/admin.ts`
 - Migrations: `supabase/migrations/*.sql`
 - Local Supabase config: `supabase/config.toml`
+- Edge Function: `supabase/functions/detect-follow-up-tasks/index.ts`
 
 Security rule: never expose `SUPABASE_SERVICE_ROLE_KEY` to client code. Only use it in server-only Route Handlers or server utilities.
+
+### WhatsApp / Meta Cloud API
+
+WhatsApp Cloud API support is wired server-side.
+
+Used for:
+
+- registration confirmation attempts;
+- package-created attempts;
+- payment receipt attempts;
+- portal-link attempts;
+- session reminder attempts;
+- webhook status updates;
+- patient-detail WhatsApp status badges;
+- admin report delivery-health metric.
+
+Important files:
+
+- Server utility: `src/lib/whatsapp.ts`
+- Webhook route: `src/app/api/webhooks/whatsapp/route.ts`
+- Notification log table migration: `supabase/migrations/20260708100549_add_whatsapp_notifications.sql`
+
+Current setup expectation:
+
+- Testing can use Meta's Cloud API test phone number and approved test recipient numbers.
+- Production needs real WhatsApp Business number, approved templates, billing setup, and final webhook domain.
+- Real tokens must only be stored in `.env.local`, host environment variables, or Supabase secrets. They must never be committed.
 
 ### Hosting
 
@@ -141,6 +220,17 @@ SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 REGISTRATION_RATE_LIMIT_SALT=replace-with-a-long-random-server-only-value
 APP_ALLOWED_ORIGINS=https://your-production-domain.com
+META_WHATSAPP_ACCESS_TOKEN=your-meta-whatsapp-access-token
+META_WHATSAPP_PHONE_NUMBER_ID=your-meta-whatsapp-phone-number-id
+META_WHATSAPP_BUSINESS_ACCOUNT_ID=your-meta-whatsapp-business-account-id
+META_WHATSAPP_WEBHOOK_VERIFY_TOKEN=replace-with-a-random-webhook-verify-token
+REGISTRATION_CONFIRMATION_TEMPLATE_NAME=registration_confirmation_template_name
+PAYMENT_RECEIPT_TEMPLATE_NAME=payment_receipt_template_name
+PACKAGE_CREATED_TEMPLATE_NAME=package_created_template_name
+PORTAL_LINK_TEMPLATE_NAME=portal_link_template_name
+SESSION_REMINDER_TEMPLATE_NAME=session_reminder_template_name
+WHATSAPP_TEMPLATE_LANGUAGE=en
+FOLLOW_UP_CRON_SECRET=replace-with-a-random-follow-up-cron-secret
 ```
 
 Meaning:
@@ -171,6 +261,32 @@ Meaning:
   - Optional comma-separated extra allowed origins.
   - Useful when the app is accessed through temporary/staging/custom domains.
 
+- `META_WHATSAPP_ACCESS_TOKEN`
+  - Server-only Meta Cloud API token.
+  - Used by `src/lib/whatsapp.ts`.
+
+- `META_WHATSAPP_PHONE_NUMBER_ID`
+  - Server-only Cloud API phone number ID.
+  - The app posts template messages to `https://graph.facebook.com/v20.0/{PHONE_NUMBER_ID}/messages`.
+
+- `META_WHATSAPP_BUSINESS_ACCOUNT_ID`
+  - Server-only WhatsApp Business Account ID.
+  - Reserved for template/business-account management flows.
+
+- `META_WHATSAPP_WEBHOOK_VERIFY_TOKEN`
+  - Server-only random string used for Meta webhook GET verification.
+
+- `*_TEMPLATE_NAME`
+  - Template names configured in Meta Business Manager.
+  - Keep names in env because approved template names may change.
+
+- `WHATSAPP_TEMPLATE_LANGUAGE`
+  - Defaults to `en` if omitted.
+
+- `FOLLOW_UP_CRON_SECRET`
+  - Shared secret checked by the `detect-follow-up-tasks` Edge Function.
+  - In hosted Supabase, this is configured in Edge Function secrets and Vault. The placeholder in `.env.example` is not a real value.
+
 Do not commit `.env.local`.
 
 ## 6. Project structure
@@ -193,11 +309,25 @@ src/app/
   (dashboard)/invoices/[id]/page.tsx Invoice detail
   (dashboard)/qr-code/page.tsx       Registration QR code
   (dashboard)/settings/page.tsx      Admin settings, branding, doctors, staff
+  (dashboard)/therapist/page.tsx     Therapist package/session workbench
+  (dashboard)/follow-up/page.tsx     Follow-up task queue
+  (dashboard)/reports/page.tsx       Admin master report
+  portal/[token]/page.tsx            Public patient portal
   api/register/route.ts              Public/manual patient registration API
   api/public-config/route.ts         Public clinic config + doctor list API
   api/registration-status/route.ts   Public confirmation status API
   api/admin/invoices/route.ts        Staff invoice generation API
+  api/admin/packages/route.ts        Package sale API
+  api/admin/payments/route.ts        Append-only payment API
+  api/admin/cash-reconciliation/route.ts Cash shift close/report API
+  api/admin/reports/route.ts         Admin master report aggregate API
   api/admin/staff-users/route.ts     Admin staff create/delete/list API
+  api/admin/visits/[id]/payment-method/route.ts Admin payment method override API
+  api/admin/patients/[id]/portal-link/route.ts Admin portal link regeneration API
+  api/therapist/sessions/route.ts    Session check-in API
+  api/follow-up/tasks/route.ts       Follow-up task list/update API
+  api/portal/route.ts                Public portal data API
+  api/webhooks/whatsapp/route.ts     Meta WhatsApp webhook API
 
 src/components/
   layout/                            Dashboard layout/header/sidebar/mobile nav
@@ -234,16 +364,28 @@ Roles are stored in `profiles.role`:
 
 - `admin`
   - Full dashboard access.
-  - Can manage clinic settings, doctors, staff users, charge presets, invoices, patients, visits.
+  - Can manage clinic settings, doctors, staff users, charge presets, invoices, patients, visits, portal links, reports, package/payment views, cash reconciliation, follow-up tasks, and payment method overrides.
 
 - `receptionist`
   - Staff workflow access.
   - Can manage patients/visits/invoices depending on page checks.
-  - Can generate invoices for visits.
+  - Can create packages and record append-only payments.
+  - Can close cash shifts through the dashboard cash reconciliation workflow.
 
 - `doctor`
   - Staff role for clinical workflow.
   - Doctor accounts are separate from the doctor list shown on the registration form.
+  - Read-oriented access to patient/package/payment data is expected; write permissions are intentionally limited.
+
+- `therapist`
+  - Can use the therapist workbench.
+  - Can mark package sessions through `mark_session_atomic`.
+  - Session counters are computed from `package_sessions`, not stored on packages.
+
+- `follow_up_agent`
+  - Can use the follow-up task queue.
+  - Can view and update tasks assigned to them.
+  - Admin can view/update all follow-up tasks.
 
 Important product decision:
 
@@ -303,6 +445,8 @@ Supabase email/password login. No public signup. Staff users are created by an a
 
 Summary cards and queue overview. Uses `dataService.getDashboardStats()` and visits data.
 
+Includes cash reconciliation UI and recent payment method override list for admin.
+
 ### `/visits`
 
 Visit/queue management. Visit statuses are currently generic:
@@ -315,9 +459,20 @@ Visit/queue management. Visit statuses are currently generic:
 
 Patient list/search. Patient detail page shows collected patient details and visit history.
 
+Patient detail also shows:
+
+- package cards with computed balance and sessions used/remaining;
+- append-only payment history;
+- WhatsApp delivery badges for payment rows;
+- package/payment flow entry points;
+- admin portal link regeneration;
+- payment method read-only/override UI depending on role.
+
 ### `/invoices`
 
 Invoice analytics/list. Includes collection summary and filters. Invoices are not automatically created on registration anymore. Staff generate invoice manually when needed.
+
+Invoice pages are now legacy/manual invoice surfaces alongside the newer append-only package/payment ledger.
 
 ### `/settings`
 
@@ -327,7 +482,47 @@ Admin-focused settings page. Current sections include:
 - clinic profile: name, address, phone, registration number, website URL;
 - doctor list: active doctors shown on registration;
 - registration hours: working days and split slots;
-- staff users: admin-created receptionist/doctor accounts.
+- staff users: admin-created receptionist/doctor/therapist/follow-up agent accounts.
+
+### `/therapist`
+
+Therapist/admin workbench for active packages.
+
+- Lists active packages with patient phone, total sessions, sessions used, and sessions remaining.
+- Marks delivered sessions through `mark_session_atomic`.
+- Sends/logs session reminder WhatsApp attempts.
+
+### `/follow-up`
+
+Follow-up agent/admin task queue.
+
+- Lists pending/contacted/resolved tasks.
+- Shows patient name, phone, reason, package, and session counts.
+- Lets assigned follow-up agent or admin set status, outcome, and notes.
+
+### `/reports`
+
+Admin-only master report.
+
+Sections:
+
+- collections: cash vs online totals, date/staff filters, cash reconciliation variance;
+- packages: sold and overdue outstanding balances;
+- sessions: delivered vs expected per active package, overrun/underrun flags;
+- payment method overrides: count by staff and recent entries;
+- repeat-patient rate;
+- follow-up outcomes;
+- WhatsApp delivery health for last 7 days.
+
+No writes happen from this page. It calls `GET /api/admin/reports`.
+
+### `/portal/[token]`
+
+Public patient portal page.
+
+- Read-only package/payment/session overview.
+- Uses tokenized portal links.
+- No patient login is required.
 
 Known theme behavior:
 
@@ -346,9 +541,20 @@ All route paths are relative to `NEXT_PUBLIC_APP_URL`.
 | `POST` | `/api/register` | Public or authenticated staff | Validates registration payload, checks appointment slot for public users, rate-limits public attempts, calls `register_patient_atomic`. |
 | `GET` | `/api/registration-status?ref=<uuid>` | Public | Returns token/status/queue position for a confirmation reference. |
 | `POST` | `/api/admin/invoices` | Authenticated admin/receptionist | Creates or returns an invoice for a visit using `create_invoice_for_visit`. |
+| `POST` | `/api/admin/packages` | Authenticated admin/receptionist | Creates a treatment package and logs WhatsApp attempts. |
+| `POST` | `/api/admin/payments` | Authenticated admin/receptionist | Records an append-only payment transaction and logs WhatsApp attempts. |
+| `GET` | `/api/admin/cash-reconciliation` | Authenticated admin/receptionist | Returns current shift cash reconciliation summary. |
+| `POST` | `/api/admin/cash-reconciliation` | Authenticated admin/receptionist | Closes a cash shift using `close_cash_shift_atomic`. |
+| `PATCH` | `/api/admin/visits/[id]/payment-method` | Admin | Overrides locked visit payment method with mandatory reason using `override_payment_method_atomic`. |
+| `POST` | `/api/admin/patients/[id]/portal-link` | Admin | Regenerates/reuses a portal link for a patient. |
+| `GET` | `/api/admin/reports` | Admin | Read-only aggregate master report across collections, packages, sessions, overrides, follow-ups, and WhatsApp health. |
 | `GET` | `/api/admin/staff-users` | Admin | Lists staff profiles merged with Supabase Auth user emails. |
-| `POST` | `/api/admin/staff-users` | Admin | Creates Supabase Auth user and matching `profiles` row for receptionist/doctor. |
+| `POST` | `/api/admin/staff-users` | Admin | Creates Supabase Auth user and matching `profiles` row for receptionist/doctor/therapist/follow-up agent. |
 | `DELETE` | `/api/admin/staff-users?id=<uuid>` | Admin | Deletes a staff Supabase Auth user. Prevents deleting the currently signed-in admin. |
+| `GET/POST` | `/api/therapist/sessions` | Therapist/admin | Lists active packages and marks delivered sessions. |
+| `GET/PATCH` | `/api/follow-up/tasks` | Follow-up agent/admin | Lists assigned/all follow-up tasks and records status/outcome. |
+| `GET` | `/api/portal?token=<uuid>` | Public | Returns public read-only portal package/payment/session overview. |
+| `GET/POST` | `/api/webhooks/whatsapp` | Public webhook | Handles Meta verification challenge and delivery-status callbacks. |
 
 Important API security patterns:
 
@@ -368,6 +574,7 @@ Main public tables:
 - `profiles`
   - Auth user profile and role.
   - Columns include `id`, `full_name`, `role`, `created_at`.
+  - Roles currently accepted: `admin`, `receptionist`, `doctor`, `therapist`, `follow_up_agent`.
 
 - `doctors`
   - Public doctor list for registration.
@@ -381,6 +588,8 @@ Main public tables:
 - `visits`
   - One appointment/visit/token.
   - Columns include `patient_id`, `doctor_id`, `token_number`, `token_date`, `consultation_date`, `consultation_time`, `visit_type`, `chief_complaint`, `status`, `confirmation_token`, `registered_by`.
+  - Phase 3 columns include `payment_method`, `payment_method_locked_at`, `payment_method_override_by`, `payment_method_override_reason`.
+  - Payment method is locked at registration and protected by DB trigger; only admin RPC override can change it.
 
 - `token_counters`
   - Per-date token number counter.
@@ -388,6 +597,40 @@ Main public tables:
 - `invoices`
   - Billing record for a visit.
   - Current flow creates invoices manually through `create_invoice_for_visit`, not automatically during public registration.
+  - Invoice-only billing is no longer the primary anti-fraud design; treatment packages and payment ledger are now the core financial model.
+
+- `patient_packages`
+  - Append-only treatment package rows.
+  - Columns include `patient_id`, optional `visit_id`, `package_name`, `total_sessions`, `quoted_amount`, `created_by`, `status`, `created_at`.
+  - No stored balance or sessions remaining column.
+
+- `payment_transactions`
+  - Append-only payment ledger.
+  - Columns include `patient_id`, optional `patient_package_id`, optional `visit_id`, `amount`, `payment_method`, `recorded_by`, `is_correction`, `correction_reason`, `created_at`.
+  - No update/delete policy is allowed. Corrections are new rows, usually negative amounts with `is_correction = true`.
+
+- `cash_reconciliations`
+  - Closed-shift cash reconciliation rows.
+  - Stores system cash total, counted cash, variance, closed_by, notes, and timestamp.
+
+- `whatsapp_notifications`
+  - Log of WhatsApp notification attempts and webhook delivery status.
+  - Status values: `queued`, `sent`, `failed`.
+  - Stores payload, Meta message ID, and error message.
+
+- `package_sessions`
+  - Append-only delivered therapy session rows.
+  - Voiding is supported with `is_voided` and `void_reason`.
+  - Sessions used is computed from non-voided rows.
+
+- `patient_portal_links`
+  - Tokenized public portal links.
+  - Supports revocation and last accessed timestamp.
+
+- `follow_up_tasks`
+  - Follow-up queue for missed expected sessions or early discontinuation.
+  - Status values: `pending`, `contacted`, `resolved`.
+  - Outcomes: `rescheduled`, `discontinued_reason`, `no_answer`.
 
 - `charge_presets`
   - Reusable billing items such as consultation fee.
@@ -425,6 +668,7 @@ Responsibilities:
 - return token, visit ID, patient name, confirmation token, and duplicate flag.
 
 As of the manual invoice migration, it does not create an invoice.
+It now also stores the locked `payment_method` and `payment_method_locked_at` values for the visit.
 
 ### `public.create_invoice_for_visit(p_visit_id uuid)`
 
@@ -438,6 +682,83 @@ Responsibilities:
 - generate invoice number using private counter;
 - prefill active consultation fee if available;
 - insert invoice.
+
+### `public.create_patient_package_atomic(...)`
+
+Server-only RPC used by `/api/admin/packages`.
+
+Responsibilities:
+
+- require admin/receptionist role;
+- insert a treatment package;
+- return the created package row.
+
+### `public.record_payment_atomic(...)`
+
+Server-only RPC used by `/api/admin/payments`.
+
+Responsibilities:
+
+- require admin/receptionist role;
+- insert a payment transaction;
+- compute and return paid total and balance from ledger rows;
+- never store balance on the package.
+
+### `public.override_payment_method_atomic(...)`
+
+Server-only RPC used by `/api/admin/visits/[id]/payment-method`.
+
+Responsibilities:
+
+- require admin role;
+- update visit payment method;
+- set override staff and reason;
+- bypass the DB trigger only inside the controlled function.
+
+### `public.close_cash_shift_atomic(...)`
+
+Server-only RPC used by `/api/admin/cash-reconciliation`.
+
+Responsibilities:
+
+- compute cash total from payment transactions for the shift date;
+- insert the counted cash and variance record.
+
+### `public.mark_session_atomic(...)`
+
+Server-only RPC used by `/api/therapist/sessions`.
+
+Responsibilities:
+
+- require therapist/admin role;
+- insert a delivered package session;
+- compute sessions used and remaining from non-voided `package_sessions`.
+
+### `public.void_package_session_atomic(...)`
+
+Admin-only RPC for voiding session rows while preserving auditability.
+
+### `public.get_patient_portal_overview(...)`
+
+Public token-based portal RPC used by `/api/portal`.
+
+Responsibilities:
+
+- validate a non-revoked portal token;
+- return patient package, session, payment, and balance data;
+- compute balances and sessions dynamically.
+
+### `public.detect_follow_up_tasks_atomic()`
+
+Service-role RPC called by the `detect-follow-up-tasks` Edge Function.
+
+Responsibilities:
+
+- scan active packages;
+- compute expected sessions as days since package creation capped by total sessions;
+- compare against non-voided delivered sessions;
+- insert one open `missed_expected_session` follow-up task per behind package;
+- never flag completed or cancelled packages.
 
 ### `public.get_next_token()` and `public.generate_invoice_number()`
 
@@ -481,12 +802,14 @@ Public routes:
 - `/login`
 - `/register`
 - `/confirmation`
+- `/portal/[token]`
 
 Public API prefixes:
 
 - `/api/register`
 - `/api/public-config`
 - `/api/registration-status`
+- `/api/portal`
 
 Everything else requires a Supabase session. Unauthenticated page requests redirect to `/login?next=<path>`. Unauthenticated protected API requests receive `401` JSON.
 
@@ -546,6 +869,28 @@ Key groups:
   - `generateInvoiceForVisit`
   - `updateInvoice`
 
+- packages/payments:
+  - `createPatientPackage`
+  - `recordPayment`
+  - `getPatientPackages`
+  - `getPaymentHistory`
+
+- sessions/portal:
+  - `getTherapistActivePackages`
+  - `markPackageSession`
+  - `regeneratePatientPortalLink`
+
+- cash reconciliation:
+  - `getCashReconciliationSummary`
+  - `closeCashShift`
+
+- follow-up:
+  - `getFollowUpTasks`
+  - `updateFollowUpTask`
+
+- reports:
+  - `getAdminMasterReport`
+
 - doctors:
   - `getDoctors`
   - `getAllDoctors`
@@ -569,6 +914,7 @@ Key groups:
   - `getDashboardStats`
   - `getVisitCount`
   - `getTotalSpent`
+  - `getRecentPaymentMethodOverrides`
 
 ## 17. Realtime
 
@@ -589,6 +935,31 @@ Patients can open and submit registration any time. Current open/closed status i
 Public registration creates a patient and visit/token only. It does not create an invoice. This keeps invoice analytics clean when someone registers but never arrives.
 
 Staff can generate an invoice from a visit row when appropriate.
+
+### Append-only financial ledger
+
+The core financial design is now treatment packages plus `payment_transactions`.
+
+- No staff role should update or delete `payment_transactions`.
+- No stored package balance should be added.
+- Balance is computed as `quoted_amount - sum(payment_transactions.amount)`.
+- Corrections must be inserted as new rows, not edits.
+
+### Payment method lock
+
+Visit `payment_method` is captured during registration and locked. Admin override requires a reason and is visible in dashboard/reporting.
+
+### Sessions are computed, not stored
+
+Sessions used/remaining are computed from non-voided `package_sessions`. Do not add a `sessions_remaining` column to `patient_packages`.
+
+### WhatsApp delivery is non-blocking
+
+WhatsApp send failures must be logged in `whatsapp_notifications` but must not roll back package, payment, registration, or session workflows.
+
+### Follow-up detection
+
+The daily Edge Function creates follow-up tasks only for active packages that are behind expected session cadence. Completed/cancelled packages should not be flagged.
 
 ### Doctor list versus doctor login
 
@@ -639,6 +1010,9 @@ Before production deployment:
 - Set `NEXT_PUBLIC_APP_URL` to the production domain.
 - Set `APP_ALLOWED_ORIGINS` if using staging/temp/custom domains.
 - Confirm `SUPABASE_SERVICE_ROLE_KEY` is server-only.
+- Configure Meta WhatsApp env vars and approved template names before expecting WhatsApp sends to succeed.
+- Configure the Meta webhook callback to `/api/webhooks/whatsapp`.
+- Ensure Supabase Vault and Edge Function secrets are configured for `detect-follow-up-tasks`.
 - Run:
 
 ```bash
@@ -712,6 +1086,46 @@ For billing changes:
 4. `src/components/invoices/InvoiceForm.tsx`
 5. `src/lib/dataService.ts`
 
+For package/payment ledger changes:
+
+1. `src/app/api/admin/packages/route.ts`
+2. `src/app/api/admin/payments/route.ts`
+3. `src/app/(dashboard)/patients/[id]/page.tsx`
+4. `src/lib/dataService.ts`
+5. `supabase/migrations/20260708094515_append_only_payment_ledger.sql`
+
+For WhatsApp changes:
+
+1. `src/lib/whatsapp.ts`
+2. `src/app/api/webhooks/whatsapp/route.ts`
+3. `src/app/api/register/route.ts`
+4. `src/app/api/admin/packages/route.ts`
+5. `src/app/api/admin/payments/route.ts`
+6. `src/app/api/therapist/sessions/route.ts`
+
+For session/portal changes:
+
+1. `src/app/(dashboard)/therapist/page.tsx`
+2. `src/app/portal/[token]/page.tsx`
+3. `src/app/api/therapist/sessions/route.ts`
+4. `src/app/api/portal/route.ts`
+5. `src/lib/patientPortal.ts`
+6. `supabase/migrations/20260709123000_session_checkin_patient_portal.sql`
+
+For follow-up changes:
+
+1. `src/app/(dashboard)/follow-up/page.tsx`
+2. `src/app/api/follow-up/tasks/route.ts`
+3. `supabase/functions/detect-follow-up-tasks/index.ts`
+4. `supabase/migrations/20260709133000_follow_up_tasks.sql`
+
+For reports changes:
+
+1. `src/app/(dashboard)/reports/page.tsx`
+2. `src/app/api/admin/reports/route.ts`
+3. `src/lib/dataService.ts`
+4. `src/types/index.ts`
+
 ## 23. High-level request flow examples
 
 ### Public registration flow
@@ -760,4 +1174,5 @@ Staff dashboard visit row
 - Use migrations for database schema/RPC changes.
 - Keep public registration compatible with dynamic tenant settings; avoid hard-coded clinic-specific names/timings.
 - Preserve the product direction: multi-clinic configurable SaaS-style app, not a one-off clinic website.
-- After touching registration, invoices, auth, or settings, run at least `npm run typecheck`, `npm run lint`, and `npm run build`; run Vitest when changing schedule/registration logic.
+- Preserve anti-fraud invariants: append-only payment ledger, computed package balances, computed session counts, admin-only payment method override with reason, and non-blocking WhatsApp failure logging.
+- After touching registration, invoices, auth, settings, ledger, sessions, follow-up, reports, or Supabase types, run `npm run check` when feasible; run targeted Vitest when changing schedule/registration logic.
