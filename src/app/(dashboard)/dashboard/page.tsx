@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react'
+import { useForm } from 'react-hook-form'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import {
@@ -19,13 +20,16 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { AddVisitDialog } from '@/components/visits/AddVisitDialog'
-import { ConfirmDialog } from '@/components/ui/Modal'
+import { ConfirmDialog, Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/context/AuthContext'
 import { formatCurrency, formatDateTime, formatTime } from '@/lib/utils'
 import * as dataService from '@/lib/dataService'
-import type { Visit, DashboardStats, Doctor, PaymentMethodOverrideVisit } from '@/types'
+import type { Visit, DashboardStats, Doctor, PaymentMethodOverrideVisit, CashReconciliationRecord } from '@/types'
 import { StatsCardSkeleton } from '@/components/shared/LoadingSkeleton'
+import { Input } from '@/components/ui/Input'
+import { Textarea } from '@/components/ui/Textarea'
+import { calculateVariance, getVarianceTone } from '@/lib/cashReconciliation'
 
 function RecentPaymentMethodOverrides() {
   const [overrides, setOverrides] = useState<PaymentMethodOverrideVisit[]>([])
@@ -100,6 +104,20 @@ export default function DashboardPage() {
   const [showAddVisit, setShowAddVisit] = useState(false)
   const [cancelVisitId, setCancelVisitId] = useState<string | null>(null)
   const [generatingInvoiceVisitId, setGeneratingInvoiceVisitId] = useState<string | null>(null)
+  const [showReconciliationModal, setShowReconciliationModal] = useState(false)
+  const [reconciliationSummary, setReconciliationSummary] = useState<{
+    shift_date: string
+    system_cash_total: number
+    history: CashReconciliationRecord[]
+  } | null>(null)
+  const [reconciling, setReconciling] = useState(false)
+  const [reconciliationError, setReconciliationError] = useState<string | null>(null)
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<{ counted_cash: string; notes: string }>({
+    defaultValues: { counted_cash: '', notes: '' },
+  })
+
+  const countedCashValue = Number(watch('counted_cash') || 0)
+  const variance = calculateVariance(countedCashValue, reconciliationSummary?.system_cash_total ?? 0)
 
   const loadData = useCallback(async () => {
     try {
@@ -164,6 +182,38 @@ export default function DashboardPage() {
     }
   }
 
+  const loadReconciliationSummary = useCallback(async () => {
+    try {
+      const summary = await dataService.getCashReconciliationSummary()
+      setReconciliationSummary(summary)
+    } catch {
+      setReconciliationSummary(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadReconciliationSummary()
+  }, [loadReconciliationSummary])
+
+  const onCloseShift = async (values: { counted_cash: string; notes: string }) => {
+    setReconciling(true)
+    setReconciliationError(null)
+    try {
+      await dataService.closeCashShift({
+        counted_cash: Number(values.counted_cash),
+        notes: values.notes.trim() || null,
+      })
+      await loadReconciliationSummary()
+      reset({ counted_cash: '', notes: '' })
+      setShowReconciliationModal(false)
+      toast.success('Cash shift closed')
+    } catch (error) {
+      setReconciliationError(error instanceof Error ? error.message : 'Unable to close shift')
+    } finally {
+      setReconciling(false)
+    }
+  }
+
   const statCards = stats
     ? [
         {
@@ -208,10 +258,15 @@ export default function DashboardPage() {
           title="Dashboard"
           description={`Today — ${format(new Date(), 'EEEE, d MMMM yyyy')}`}
           actions={
-            <Button onClick={() => setShowAddVisit(true)} size="sm">
-              <Plus className="w-4 h-4" />
-              Add Patient
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setShowReconciliationModal(true)} size="sm">
+                Close Shift
+              </Button>
+              <Button onClick={() => setShowAddVisit(true)} size="sm">
+                <Plus className="w-4 h-4" />
+                Add Patient
+              </Button>
+            </div>
           }
         />
 
@@ -345,6 +400,69 @@ export default function DashboardPage() {
           )}
         </div>
 
+        <div className="card overflow-hidden mt-6">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Cash Reconciliation</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Today&apos;s expected cash: {formatCurrency(reconciliationSummary?.system_cash_total ?? 0)}
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => setShowReconciliationModal(true)} size="sm">
+              Close shift
+            </Button>
+          </div>
+          <div className="p-5">
+            <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
+              <div className="rounded-xl border border-slate-200 p-4">
+                <p className="text-sm font-semibold text-slate-900">Variance preview</p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Enter the counted cash to see the difference versus the system total.
+                </p>
+                <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Expected</span>
+                    <span className="text-sm font-semibold text-slate-900">{formatCurrency(reconciliationSummary?.system_cash_total ?? 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-sm text-slate-600">Counted</span>
+                    <span className="text-sm font-semibold text-slate-900">{formatCurrency(countedCashValue)}</span>
+                  </div>
+                  <div className="flex items-center justify-between mt-3 border-t border-slate-200 pt-3">
+                    <span className="text-sm text-slate-600">Variance</span>
+                    <span className={`text-sm font-semibold ${getVarianceTone(variance) === 'balanced' ? 'text-slate-900' : variance > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {variance >= 0 ? '+' : ''}{formatCurrency(variance)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-4">
+                <p className="text-sm font-semibold text-slate-900">Recent reconciliations</p>
+                {reconciliationSummary?.history.length ? (
+                  <div className="mt-3 space-y-3">
+                    {[...reconciliationSummary.history]
+                      .sort((a, b) => b.variance - a.variance)
+                      .slice(0, 5)
+                      .map((record) => (
+                        <div key={record.id} className="rounded-lg border border-slate-100 p-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-semibold text-slate-900">{record.profiles?.full_name || 'Staff'}</p>
+                            <span className={`text-xs font-semibold ${record.variance === 0 ? 'text-slate-700' : record.variance > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {record.variance >= 0 ? '+' : ''}{formatCurrency(record.variance)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-500">{formatDateTime(record.created_at)}</p>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-500">No cash reconciliation has been closed today yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Recent Overrides — admin only */}
         {profile?.role === 'admin' && <RecentPaymentMethodOverrides />}
       </div>
@@ -368,6 +486,68 @@ export default function DashboardPage() {
         description="Are you sure you want to cancel this visit? This action cannot be undone."
         confirmLabel="Yes, Cancel Visit"
       />
+
+      <Modal
+        isOpen={showReconciliationModal}
+        onClose={() => {
+          setShowReconciliationModal(false)
+          reset({ counted_cash: '', notes: '' })
+          setReconciliationError(null)
+        }}
+        title="Close cash shift"
+        size="md"
+      >
+        <form onSubmit={handleSubmit(onCloseShift)} className="p-6 space-y-4">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-900">Expected cash</p>
+            <p className="mt-1 text-sm text-slate-600">
+              Today&apos;s system total: {formatCurrency(reconciliationSummary?.system_cash_total ?? 0)}
+            </p>
+          </div>
+
+          <Input
+            label="Counted cash"
+            type="number"
+            step="0.01"
+            min="0"
+            inputMode="decimal"
+            placeholder="0.00"
+            error={errors.counted_cash?.message}
+            {...register('counted_cash', {
+              required: 'Counted cash is required',
+              validate: (value) => Number(value) >= 0 || 'Counted cash cannot be negative',
+            })}
+          />
+
+          <Textarea
+            label="Notes"
+            rows={4}
+            placeholder="Add any note about the shift or a mismatch"
+            helperText="Optional"
+            error={errors.notes?.message}
+            {...register('notes')}
+          />
+
+          {reconciliationError && (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {reconciliationError}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => {
+              setShowReconciliationModal(false)
+              reset({ counted_cash: '', notes: '' })
+              setReconciliationError(null)
+            }}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={reconciling}>
+              Save reconciliation
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </DashboardLayout>
   )
 }

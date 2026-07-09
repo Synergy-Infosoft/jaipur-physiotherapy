@@ -7,6 +7,7 @@ import {
   isConsultationSlotAvailable,
   registrationSchema,
 } from './registration'
+import { calculateVariance, getVarianceTone } from './cashReconciliation'
 
 describe('registrationSchema', () => {
   const validInput = {
@@ -52,6 +53,19 @@ describe('registrationSchema', () => {
       consultation_time: '25:00',
     })
     expect(result.success).toBe(false)
+  })
+})
+
+describe('cash reconciliation helpers', () => {
+  it('calculates variance from counted and expected cash totals', () => {
+    expect(calculateVariance(1500, 1450)).toBe(50)
+    expect(calculateVariance(1400, 1450)).toBe(-50)
+  })
+
+  it('classifies variance tone for balanced and mismatched shifts', () => {
+    expect(getVarianceTone(0)).toBe('balanced')
+    expect(getVarianceTone(25)).toBe('positive')
+    expect(getVarianceTone(-10)).toBe('negative')
   })
 })
 

@@ -22,6 +22,7 @@ import type {
   LedgerPaymentMethod,
   WhatsAppNotification,
   PaymentMethodOverrideVisit,
+  CashReconciliationRecord,
 } from '../types'
 import type { Database } from '../types/database'
 
@@ -88,6 +89,11 @@ export interface OverridePaymentMethodPayload {
   visit_id: string
   payment_method: LedgerPaymentMethod
   reason: string
+}
+
+export interface CloseCashShiftPayload {
+  counted_cash: number
+  notes?: string | null
 }
 
 // ─── Patients ─────────────────────────────────────────────────────────────────
@@ -450,6 +456,43 @@ export async function recordPayment(payload: RecordPaymentPayload): Promise<Reco
   }
 
   return result.payment as RecordPaymentResult
+}
+
+export async function getCashReconciliationSummary(): Promise<{
+  shift_date: string
+  system_cash_total: number
+  history: CashReconciliationRecord[]
+}> {
+  const response = await fetch('/api/admin/cash-reconciliation', {
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+  })
+
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(payload.error || 'Unable to load cash reconciliation summary')
+  }
+
+  return payload as {
+    shift_date: string
+    system_cash_total: number
+    history: CashReconciliationRecord[]
+  }
+}
+
+export async function closeCashShift(payload: CloseCashShiftPayload): Promise<CashReconciliationRecord> {
+  const response = await fetch('/api/admin/cash-reconciliation', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to close cash shift')
+  }
+
+  return result.reconciliation as CashReconciliationRecord
 }
 
 export async function getDoctors(): Promise<Doctor[]> {

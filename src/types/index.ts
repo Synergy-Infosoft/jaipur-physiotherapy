@@ -189,3 +189,17 @@ export interface DashboardStats {
 export interface PaymentMethodOverrideVisit extends Visit {
   patient?: Patient
 }
+
+export interface CashReconciliationRecord {
+  id: string
+  shift_date: string
+  system_cash_total: number
+  counted_cash: number
+  variance: number
+  notes: string | null
+  closed_by: string | null
+  created_at: string
+  profiles?: {
+    full_name?: string | null
+  } | null
+}

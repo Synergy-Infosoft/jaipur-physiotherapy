@@ -445,6 +445,24 @@ export interface Database {
           balance: number | null
         }>
       }
+      close_cash_shift_atomic: {
+        Args: {
+          p_counted_cash: number
+          p_notes?: string | null
+          p_closed_by?: string | null
+          p_shift_date?: string
+        }
+        Returns: Array<{
+          id: string
+          shift_date: string
+          system_cash_total: number
+          counted_cash: number
+          variance: number
+          notes: string | null
+          closed_by: string | null
+          created_at: string
+        }>
+      }
     }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>
