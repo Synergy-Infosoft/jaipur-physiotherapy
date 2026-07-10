@@ -277,3 +277,29 @@ This file records major project changes, database migrations, verification steps
 - `npm run build` passed.
 - Manually checked the patient detail page with browser screenshots at 1440px desktop and 390px mobile widths.
 - Confirmed no duplicate Registration details or Latest visit summary cards, no horizontal overflow, and payment form placement/stacking works at both widths.
+
+## 2026-07-10 - Package templates and therapist single-session display fix
+
+### Database
+- Added and applied migration `supabase/migrations/20260710062938_package_templates.sql`.
+- Created `package_templates` for admin-managed reusable package presets.
+- Added nullable `patient_packages.template_id` for provenance/reporting while keeping copied package name, sessions, and quoted amount as the binding sold values.
+- Seeded placeholder templates: `Single Session`, `10 Day Combo`, and `30 Days Back Massage`; these are admin-editable starter values, not assumed-final clinic prices.
+- Recreated `create_patient_package_atomic` with optional `p_template_id`.
+
+### Backend
+- Added `GET/POST /api/admin/package-templates`.
+- Extended package creation to pass `template_id` into `create_patient_package_atomic`.
+- Added package-template data service helpers for list/create/update.
+
+### UI
+- Added admin-only Package Templates management in Settings, using the existing add/save/hide pattern.
+- Added From template / Custom package mode to the patient detail Sell package / record payment form.
+- Template selection prefills package name, total sessions, and quoted amount while keeping those copied values editable.
+- Fixed the therapist patient modal so `total_sessions = 1` packages appear only under Single-time therapy sessions, not also in the Package list.
+
+### Verification
+- `npm run check` passed.
+- `supabase db push --include-all` applied the migration to the linked Supabase project.
+- `supabase db query --linked` confirmed the seeded templates, `patient_packages.template_id`, and the new `create_patient_package_atomic(..., p_template_id uuid default null)` signature.
+- DB-level manual verification inserted one template-based package and one custom package inside a transaction; the template row had a non-null `template_id`, the custom row had `template_id = null`, and rollback left zero lingering test packages.

@@ -158,6 +158,7 @@ export interface Database {
           id: string
           patient_id: string
           visit_id: string | null
+          template_id: string | null
           package_name: string
           total_sessions: number
           quoted_amount: number
@@ -169,6 +170,7 @@ export interface Database {
           id?: string
           patient_id: string
           visit_id?: string | null
+          template_id?: string | null
           package_name: string
           total_sessions: number
           quoted_amount: number
@@ -193,7 +195,44 @@ export interface Database {
             referencedColumns: ['id']
           },
           {
+            foreignKeyName: 'patient_packages_template_id_fkey'
+            columns: ['template_id']
+            isOneToOne: false
+            referencedRelation: 'package_templates'
+            referencedColumns: ['id']
+          },
+          {
             foreignKeyName: 'patient_packages_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      package_templates: {
+        Row: {
+          id: string
+          name: string
+          total_sessions: number
+          default_price: number
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          total_sessions: number
+          default_price: number
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['package_templates']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'package_templates_created_by_fkey'
             columns: ['created_by']
             isOneToOne: false
             referencedRelation: 'profiles'
@@ -534,11 +573,13 @@ export interface Database {
           p_package_name?: string | null
           p_total_sessions?: number | null
           p_quoted_amount?: number | null
+          p_template_id?: string | null
         }
         Returns: Array<{
           id: string
           patient_id: string
           visit_id: string | null
+          template_id: string | null
           package_name: string
           total_sessions: number
           quoted_amount: number

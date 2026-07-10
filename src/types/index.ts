@@ -254,6 +254,7 @@ export interface PatientPackage {
   id: string
   patient_id: string
   visit_id: string | null
+  template_id: string | null
   package_name: string
   total_sessions: number
   quoted_amount: number
@@ -266,6 +267,16 @@ export interface PatientPackage {
   sessions_used?: number
   sessions_remaining?: number
   visit?: Visit | null
+}
+
+export interface PackageTemplate {
+  id: string
+  name: string
+  total_sessions: number
+  default_price: number
+  is_active: boolean
+  created_by: string | null
+  created_at: string
 }
 
 export interface PatientPortalLink {

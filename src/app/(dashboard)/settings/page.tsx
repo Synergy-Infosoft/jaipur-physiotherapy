@@ -6,6 +6,7 @@ import {
   Check,
   Clock,
   Image as ImageIcon,
+  Package,
   Palette,
   Plus,
   Power,
@@ -35,7 +36,7 @@ import {
   normalizeHexColor,
 } from '@/lib/brandTheme'
 import * as dataService from '@/lib/dataService'
-import type { ClinicDaySchedule, ClinicSettings, Doctor, UserRole } from '@/types'
+import type { ClinicDaySchedule, ClinicSettings, Doctor, PackageTemplate, UserRole } from '@/types'
 
 const dayOptions = [
   { value: 1, label: 'Monday', short: 'Mon' },
@@ -68,6 +69,7 @@ const settingsSections = [
   { id: 'clinic', label: 'Clinic Profile', description: 'Name, phone, address', icon: Building2 },
   { id: 'staff', label: 'Staff Users', description: 'Secure login accounts', icon: UserPlus },
   { id: 'doctors', label: 'Doctor List', description: 'Shown on registration', icon: Users },
+  { id: 'package-templates', label: 'Package Templates', description: 'Reusable package presets', icon: Package },
   { id: 'hours', label: 'Registration Hours', description: 'Open days and slots', icon: Clock },
 ] as const
 
@@ -160,14 +162,28 @@ function getRoleBadgeClass(role: UserRole) {
   return 'bg-blue-50 text-blue-700 border-blue-200'
 }
 
+function formatCurrency(value: number | null | undefined) {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(Number(value ?? 0))
+}
+
 export default function SettingsPage() {
   const toast = useToast()
   const { profile, loading: authLoading } = useAuth()
   const { refreshBranding, setThemeOverride } = useBranding()
   const [settings, setSettings] = useState<ClinicSettings>(emptySettings)
   const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [packageTemplates, setPackageTemplates] = useState<PackageTemplate[]>([])
   const [staffUsers, setStaffUsers] = useState<dataService.StaffUser[]>([])
   const [newDoctor, setNewDoctor] = useState({ name: '', specialization: '' })
+  const [newPackageTemplate, setNewPackageTemplate] = useState({
+    name: '',
+    total_sessions: '1',
+    default_price: '',
+  })
   const [newStaffUser, setNewStaffUser] = useState({
     full_name: '',
     email: '',
@@ -181,9 +197,12 @@ export default function SettingsPage() {
   const [creatingStaffUser, setCreatingStaffUser] = useState(false)
   const [deletingStaffUserId, setDeletingStaffUserId] = useState<string | null>(null)
   const [savingDoctorId, setSavingDoctorId] = useState<string | null>(null)
+  const [addingPackageTemplate, setAddingPackageTemplate] = useState(false)
+  const [savingPackageTemplateId, setSavingPackageTemplateId] = useState<string | null>(null)
 
   const brandPreview = useMemo(() => normalizeBrandTheme(settings), [settings])
   const activeDoctors = doctors.filter((doctor) => doctor.is_active)
+  const activePackageTemplates = packageTemplates.filter((template) => template.is_active)
 
   useEffect(() => {
     if (loading || authLoading) return
@@ -196,14 +215,16 @@ export default function SettingsPage() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const [clinicSettings, doctorList, staffList] = await Promise.all([
+        const [clinicSettings, doctorList, staffList, templateList] = await Promise.all([
           dataService.getClinicSettings(),
           dataService.getAllDoctors(),
           dataService.getStaffUsers(),
+          dataService.getPackageTemplates(),
         ])
         setSettings(clinicSettings)
         setDoctors(doctorList)
         setStaffUsers(staffList)
+        setPackageTemplates(templateList)
       } catch (error) {
         console.error('Failed to load settings:', error)
         toast.error('Unable to load settings')
@@ -363,6 +384,11 @@ export default function SettingsPage() {
     setDoctors(doctorList)
   }
 
+  const refreshPackageTemplates = async () => {
+    const templates = await dataService.getPackageTemplates()
+    setPackageTemplates(templates)
+  }
+
   const refreshStaffUsers = async () => {
     const staffList = await dataService.getStaffUsers()
     setStaffUsers(staffList)
@@ -520,6 +546,103 @@ export default function SettingsPage() {
       toast.error(getDoctorDeleteErrorMessage(error))
     } finally {
       setSavingDoctorId(null)
+    }
+  }
+
+  const addPackageTemplate = async () => {
+    const name = newPackageTemplate.name.trim()
+    const totalSessions = Number(newPackageTemplate.total_sessions)
+    const defaultPrice = Number(newPackageTemplate.default_price)
+
+    if (name.length < 2) {
+      toast.error('Template name is required')
+      return
+    }
+    if (!Number.isInteger(totalSessions) || totalSessions <= 0) {
+      toast.error('Sessions must be at least 1')
+      return
+    }
+    if (!Number.isFinite(defaultPrice) || defaultPrice < 0) {
+      toast.error('Default price must be 0 or greater')
+      return
+    }
+
+    setAddingPackageTemplate(true)
+    try {
+      await dataService.createPackageTemplate({
+        name,
+        total_sessions: totalSessions,
+        default_price: defaultPrice,
+        is_active: true,
+      })
+      setNewPackageTemplate({ name: '', total_sessions: '1', default_price: '' })
+      await refreshPackageTemplates()
+      toast.success('Package template added')
+    } catch (error) {
+      console.error('Failed to add package template:', error)
+      toast.error(error instanceof Error ? error.message : 'Unable to add package template')
+    } finally {
+      setAddingPackageTemplate(false)
+    }
+  }
+
+  const updatePackageTemplateField = <K extends keyof PackageTemplate>(id: string, key: K, value: PackageTemplate[K]) => {
+    setPackageTemplates((current) => current.map((template) => (
+      template.id === id ? { ...template, [key]: value } : template
+    )))
+  }
+
+  const savePackageTemplate = async (template: PackageTemplate) => {
+    const name = template.name.trim()
+    if (name.length < 2) {
+      toast.error('Template name is required')
+      return
+    }
+    if (!Number.isInteger(Number(template.total_sessions)) || Number(template.total_sessions) <= 0) {
+      toast.error('Sessions must be at least 1')
+      return
+    }
+    if (!Number.isFinite(Number(template.default_price)) || Number(template.default_price) < 0) {
+      toast.error('Default price must be 0 or greater')
+      return
+    }
+
+    setSavingPackageTemplateId(template.id)
+    try {
+      await dataService.updatePackageTemplate({
+        id: template.id,
+        name,
+        total_sessions: Number(template.total_sessions),
+        default_price: Number(template.default_price),
+        is_active: template.is_active,
+      })
+      await refreshPackageTemplates()
+      toast.success('Package template updated')
+    } catch (error) {
+      console.error('Failed to update package template:', error)
+      toast.error(error instanceof Error ? error.message : 'Unable to update package template')
+    } finally {
+      setSavingPackageTemplateId(null)
+    }
+  }
+
+  const togglePackageTemplateActive = async (template: PackageTemplate) => {
+    setSavingPackageTemplateId(template.id)
+    try {
+      await dataService.updatePackageTemplate({
+        id: template.id,
+        name: template.name.trim(),
+        total_sessions: Number(template.total_sessions),
+        default_price: Number(template.default_price),
+        is_active: !template.is_active,
+      })
+      await refreshPackageTemplates()
+      toast.success(!template.is_active ? 'Package template activated' : 'Package template hidden from picker')
+    } catch (error) {
+      console.error('Failed to update package template status:', error)
+      toast.error(error instanceof Error ? error.message : 'Unable to update package template')
+    } finally {
+      setSavingPackageTemplateId(null)
     }
   }
 
@@ -969,6 +1092,116 @@ export default function SettingsPage() {
                           Registration form status:{' '}
                           <span className={doctor.is_active ? 'text-emerald-700 font-semibold' : 'text-slate-500 font-semibold'}>
                             {doctor.is_active ? `Visible as ${doctor.name} - ${getDoctorSubtitle(doctor)}` : 'Hidden from patients'}
+                          </span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {activeSection === 'package-templates' && (
+                <section className="card p-5 space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 border-b border-slate-100 pb-4">
+                    <div className="flex items-center gap-2">
+                      <Package className="w-5 h-5 text-[var(--primary)]" />
+                      <div>
+                        <h2 className="text-base font-semibold text-slate-900">Package Templates</h2>
+                        <p className="text-xs text-slate-500">Reusable package presets for the patient payment form. Staff can still adjust copied values per patient.</p>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                      {activePackageTemplates.length} active
+                    </span>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm font-semibold text-slate-900 mb-1">Add a package template</p>
+                    <p className="mb-3 text-xs text-slate-500">These are picker defaults only. Sold packages keep their own copied sessions and quoted amount.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_180px_auto] gap-3 items-end">
+                      <Input
+                        label="Template name"
+                        placeholder="30 Days Back Massage"
+                        value={newPackageTemplate.name}
+                        onChange={(event) => setNewPackageTemplate((current) => ({ ...current, name: event.target.value }))}
+                      />
+                      <Input
+                        label="Sessions"
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={newPackageTemplate.total_sessions}
+                        onChange={(event) => setNewPackageTemplate((current) => ({ ...current, total_sessions: event.target.value }))}
+                      />
+                      <Input
+                        label="Default price"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={newPackageTemplate.default_price}
+                        onChange={(event) => setNewPackageTemplate((current) => ({ ...current, default_price: event.target.value }))}
+                      />
+                      <Button type="button" onClick={addPackageTemplate} loading={addingPackageTemplate} className="min-w-28">
+                        <Plus className="w-4 h-4" />
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {packageTemplates.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center">
+                        <Package className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                        <p className="text-sm font-semibold text-slate-800">No package templates found</p>
+                        <p className="text-xs text-slate-500 mt-1">Add templates above to speed up package sales.</p>
+                      </div>
+                    ) : packageTemplates.map((template) => (
+                      <div key={template.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-[1fr_140px_160px_auto] gap-3 items-end">
+                          <Input
+                            label="Template name"
+                            value={template.name}
+                            onChange={(event) => updatePackageTemplateField(template.id, 'name', event.target.value)}
+                          />
+                          <Input
+                            label="Sessions"
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={String(template.total_sessions)}
+                            onChange={(event) => updatePackageTemplateField(template.id, 'total_sessions', Number(event.target.value))}
+                          />
+                          <Input
+                            label="Default price"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={String(template.default_price)}
+                            onChange={(event) => updatePackageTemplateField(template.id, 'default_price', Number(event.target.value))}
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <Button type="button" variant="outline" onClick={() => savePackageTemplate(template)} loading={savingPackageTemplateId === template.id}>
+                              <Save className="w-4 h-4" />
+                              Save
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={template.is_active ? 'outline' : 'success'}
+                              onClick={() => togglePackageTemplateActive(template)}
+                              loading={savingPackageTemplateId === template.id}
+                              title={template.is_active ? 'Hide from package picker' : 'Show in package picker'}
+                            >
+                              {template.is_active ? <Power className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                              {template.is_active ? 'Hide' : 'Activate'}
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">
+                          Picker status:{' '}
+                          <span className={template.is_active ? 'text-emerald-700 font-semibold' : 'text-slate-500 font-semibold'}>
+                            {template.is_active
+                              ? `Visible as ${template.name} - ${template.total_sessions} sessions - ${formatCurrency(template.default_price)}`
+                              : 'Hidden from staff picker'}
                           </span>
                         </p>
                       </div>

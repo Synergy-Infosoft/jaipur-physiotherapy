@@ -120,6 +120,7 @@ export default function TherapistPage() {
 
   const monthCells = useMemo(() => getMonthCells(), [])
   const todayKey = getDateKey(new Date())
+  const multiSessionRecords = selectedPackage?.package_history.filter((item) => item.total_sessions !== 1) ?? []
   const singleTimeRecords = selectedPackage?.package_history.filter((item) => item.total_sessions === 1) ?? []
 
   const markSession = async (patientPackage: TherapistActivePackage) => {
@@ -371,37 +372,41 @@ export default function TherapistPage() {
                     <p className="mt-1 text-sm text-slate-500">Repeat packages and completed packages stay visible for history.</p>
                   </div>
                   <div className="max-h-72 space-y-3 overflow-y-auto p-4">
-                    {selectedPackage.package_history.map((historyItem, index) => (
-                      <article key={historyItem.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-bold text-slate-900">
-                              {index + 1}. {historyItem.package_name}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {getPackageKindLabel(historyItem)} | Started {formatDate(historyItem.created_at)}
-                            </p>
+                    {multiSessionRecords.length === 0 ? (
+                      <p className="text-sm text-slate-500">No multi-session packages recorded.</p>
+                    ) : (
+                      multiSessionRecords.map((historyItem, index) => (
+                        <article key={historyItem.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">
+                                {index + 1}. {historyItem.package_name}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {getPackageKindLabel(historyItem)} | Started {formatDate(historyItem.created_at)}
+                              </p>
+                            </div>
+                            <span className={cn('rounded-full border px-2 py-0.5 text-xs font-bold capitalize', getStatusClass(historyItem.status))}>
+                              {historyItem.status}
+                            </span>
                           </div>
-                          <span className={cn('rounded-full border px-2 py-0.5 text-xs font-bold capitalize', getStatusClass(historyItem.status))}>
-                            {historyItem.status}
-                          </span>
-                        </div>
-                        <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-                          <div className="rounded-lg bg-white p-2">
-                            <p className="font-semibold text-slate-500">Total</p>
-                            <p className="font-bold text-slate-900">{historyItem.total_sessions}</p>
+                          <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+                            <div className="rounded-lg bg-white p-2">
+                              <p className="font-semibold text-slate-500">Total</p>
+                              <p className="font-bold text-slate-900">{historyItem.total_sessions}</p>
+                            </div>
+                            <div className="rounded-lg bg-white p-2">
+                              <p className="font-semibold text-slate-500">Used</p>
+                              <p className="font-bold text-blue-700">{historyItem.sessions_used}</p>
+                            </div>
+                            <div className="rounded-lg bg-white p-2">
+                              <p className="font-semibold text-slate-500">Left</p>
+                              <p className="font-bold text-emerald-700">{historyItem.sessions_remaining}</p>
+                            </div>
                           </div>
-                          <div className="rounded-lg bg-white p-2">
-                            <p className="font-semibold text-slate-500">Used</p>
-                            <p className="font-bold text-blue-700">{historyItem.sessions_used}</p>
-                          </div>
-                          <div className="rounded-lg bg-white p-2">
-                            <p className="font-semibold text-slate-500">Left</p>
-                            <p className="font-bold text-emerald-700">{historyItem.sessions_remaining}</p>
-                          </div>
-                        </div>
-                      </article>
-                    ))}
+                        </article>
+                      ))
+                    )}
                   </div>
                 </section>
 

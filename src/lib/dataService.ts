@@ -17,6 +17,7 @@ import type {
   DashboardStats,
   ClinicSettings,
   UserRole,
+  PackageTemplate,
   PatientPackage,
   PaymentTransaction,
   LedgerPaymentMethod,
@@ -67,9 +68,18 @@ export interface CreateStaffUserPayload {
 export interface CreatePatientPackagePayload {
   patient_id: string
   visit_id?: string | null
+  template_id?: string | null
   package_name: string
   total_sessions: number
   quoted_amount: number
+}
+
+export interface PackageTemplatePayload {
+  id?: string
+  name: string
+  total_sessions: number
+  default_price: number
+  is_active?: boolean
 }
 
 export interface RecordPaymentPayload {
@@ -481,6 +491,50 @@ export async function createPatientPackage(payload: CreatePatientPackagePayload)
   }
 
   return result.package as PatientPackage
+}
+
+export async function getPackageTemplates(): Promise<PackageTemplate[]> {
+  const response = await fetch('/api/admin/package-templates', {
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to load package templates')
+  }
+
+  return (result.templates ?? []) as PackageTemplate[]
+}
+
+export async function createPackageTemplate(payload: PackageTemplatePayload): Promise<PackageTemplate> {
+  const response = await fetch('/api/admin/package-templates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to create package template')
+  }
+
+  return result.template as PackageTemplate
+}
+
+export async function updatePackageTemplate(payload: PackageTemplatePayload & { id: string }): Promise<PackageTemplate> {
+  const response = await fetch('/api/admin/package-templates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to update package template')
+  }
+
+  return result.template as PackageTemplate
 }
 
 export async function recordPayment(payload: RecordPaymentPayload): Promise<RecordPaymentResult> {

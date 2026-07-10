@@ -33,6 +33,7 @@ import type {
   LedgerPaymentMethod,
   Patient,
   PatientPackage,
+  PackageTemplate,
   PaymentTransaction,
   Visit,
   WhatsAppNotificationStatus,
@@ -47,6 +48,8 @@ interface DetailItemProps {
 
 type PackagePaymentForm = {
   target: 'new' | string
+  packageSource: 'template' | 'custom'
+  templateId: string
   therapyType: 'package' | 'single'
   visitId: string
   packageName: string
@@ -58,6 +61,8 @@ type PackagePaymentForm = {
 
 const emptyPackagePaymentForm: PackagePaymentForm = {
   target: 'new',
+  packageSource: 'template',
+  templateId: '',
   therapyType: 'package',
   visitId: '',
   packageName: '',
@@ -161,6 +166,7 @@ export default function PatientProfilePage() {
   const [visits, setVisits] = useState<Visit[]>([])
   const [patientPackages, setPatientPackages] = useState<PatientPackage[]>([])
   const [payments, setPayments] = useState<PaymentTransaction[]>([])
+  const [packageTemplates, setPackageTemplates] = useState<PackageTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [savingPayment, setSavingPayment] = useState(false)
   const [form, setForm] = useState<PackagePaymentForm>(emptyPackagePaymentForm)
@@ -204,6 +210,22 @@ export default function PatientProfilePage() {
     if (id) loadData()
   }, [id])
 
+  useEffect(() => {
+    if (!canManageBilling) return
+
+    const loadPackageTemplates = async () => {
+      try {
+        const templates = await dataService.getPackageTemplates()
+        setPackageTemplates(templates)
+      } catch (error) {
+        console.error('Failed to load package templates:', error)
+        toast.error(error instanceof Error ? error.message : 'Unable to load package templates')
+      }
+    }
+
+    loadPackageTemplates()
+  }, [canManageBilling, toast])
+
   const activePackages = useMemo(
     () => patientPackages.filter((patientPackage) => patientPackage.status === 'active'),
     [patientPackages]
@@ -217,6 +239,42 @@ export default function PatientProfilePage() {
     ? null
     : patientPackages.find((patientPackage) => patientPackage.id === form.target) ?? null
 
+  const activePackageTemplates = useMemo(
+    () => packageTemplates.filter((template) => template.is_active),
+    [packageTemplates]
+  )
+
+  const selectedTemplate = activePackageTemplates.find((template) => template.id === form.templateId) ?? null
+
+  useEffect(() => {
+    if (form.target !== 'new' || form.packageSource !== 'template' || form.templateId || activePackageTemplates.length === 0) return
+
+    const firstTemplate = activePackageTemplates[0]
+    setForm((current) => {
+      if (current.target !== 'new' || current.packageSource !== 'template' || current.templateId) return current
+      return {
+        ...current,
+        templateId: firstTemplate.id,
+        packageName: firstTemplate.name,
+        totalSessions: String(firstTemplate.total_sessions),
+        quotedAmount: String(firstTemplate.default_price),
+        therapyType: firstTemplate.total_sessions === 1 ? 'single' : 'package',
+      }
+    })
+  }, [activePackageTemplates, form.packageSource, form.target, form.templateId])
+
+  const applyPackageTemplate = (templateId: string) => {
+    const template = activePackageTemplates.find((item) => item.id === templateId)
+    setForm((current) => ({
+      ...current,
+      templateId,
+      packageName: template?.name ?? current.packageName,
+      totalSessions: template ? String(template.total_sessions) : current.totalSessions,
+      quotedAmount: template ? String(template.default_price) : current.quotedAmount,
+      therapyType: template?.total_sessions === 1 ? 'single' : 'package',
+    }))
+  }
+
   const focusPaymentForm = () => {
     window.requestAnimationFrame(() => {
       paymentFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -228,6 +286,8 @@ export default function PatientProfilePage() {
     setForm((current) => ({
       ...current,
       target: 'new',
+      packageSource: 'custom',
+      templateId: '',
       therapyType: visit.visit_type === 'follow_up' ? 'single' : 'package',
       visitId: visit.id,
       packageName: visit.visit_type === 'follow_up' ? 'Single-time therapy' : 'Treatment package',
@@ -261,10 +321,10 @@ export default function PatientProfilePage() {
       let visitId = form.visitId || null
 
       if (form.target === 'new') {
-        const isSingleTimeTherapy = form.therapyType === 'single'
-        const totalSessions = isSingleTimeTherapy ? 1 : Number(form.totalSessions)
+        const isCustomSingleTimeTherapy = form.packageSource === 'custom' && form.therapyType === 'single'
+        const totalSessions = isCustomSingleTimeTherapy ? 1 : Number(form.totalSessions)
         const quotedAmount = Number(form.quotedAmount)
-        const packageName = form.packageName.trim() || (isSingleTimeTherapy ? 'Single-time therapy' : '')
+        const packageName = form.packageName.trim() || (totalSessions === 1 ? 'Single-time therapy' : '')
         if (!packageName) throw new Error('Package name is required')
         if (!Number.isInteger(totalSessions) || totalSessions <= 0) throw new Error('Total sessions must be at least 1')
         if (!Number.isFinite(quotedAmount) || quotedAmount < 0) throw new Error('Quoted amount must be 0 or greater')
@@ -272,6 +332,7 @@ export default function PatientProfilePage() {
         const createdPackage = await dataService.createPatientPackage({
           patient_id: patient.id,
           visit_id: visitId,
+          template_id: form.packageSource === 'template' ? form.templateId || null : null,
           package_name: packageName,
           total_sessions: totalSessions,
           quoted_amount: quotedAmount,
@@ -526,25 +587,35 @@ export default function PatientProfilePage() {
                     {form.target === 'new' && (
                       <div className="grid grid-cols-1 gap-3">
                         <div>
-                          <span className="text-sm font-semibold text-slate-700">Therapy type</span>
+                          <span className="text-sm font-semibold text-slate-700">Package source</span>
                           <div className="mt-1 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
                             {([
-                              ['package', 'Package'],
-                              ['single', 'Single-time therapy'],
+                              ['template', 'From template'],
+                              ['custom', 'Custom package'],
                             ] as const).map(([value, label]) => (
                               <button
                                 key={value}
                                 type="button"
-                                onClick={() => setForm((current) => ({
-                                  ...current,
-                                  therapyType: value,
-                                  totalSessions: value === 'single' ? '1' : current.totalSessions,
-                                  packageName: value === 'single' && !current.packageName.trim()
-                                    ? 'Single-time therapy'
-                                    : current.packageName,
-                                }))}
+                                onClick={() => setForm((current) => {
+                                  if (value === 'custom') {
+                                    return { ...current, packageSource: value, templateId: '' }
+                                  }
+
+                                  const template = activePackageTemplates.find((item) => item.id === current.templateId)
+                                    ?? activePackageTemplates[0]
+
+                                  return {
+                                    ...current,
+                                    packageSource: value,
+                                    templateId: template?.id ?? '',
+                                    packageName: template?.name ?? current.packageName,
+                                    totalSessions: template ? String(template.total_sessions) : current.totalSessions,
+                                    quotedAmount: template ? String(template.default_price) : current.quotedAmount,
+                                    therapyType: template?.total_sessions === 1 ? 'single' : 'package',
+                                  }
+                                })}
                                 className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-                                  form.therapyType === value
+                                  form.packageSource === value
                                     ? 'bg-white text-[var(--primary)] shadow-sm'
                                     : 'text-slate-600 hover:text-slate-900'
                                 }`}
@@ -554,6 +625,59 @@ export default function PatientProfilePage() {
                             ))}
                           </div>
                         </div>
+                        {form.packageSource === 'template' ? (
+                          <label className="block">
+                            <span className="text-sm font-semibold text-slate-700">Template</span>
+                            <select
+                              value={form.templateId}
+                              onChange={(event) => applyPackageTemplate(event.target.value)}
+                              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                            >
+                              {activePackageTemplates.length === 0 ? (
+                                <option value="">No active templates found</option>
+                              ) : activePackageTemplates.map((template) => (
+                                <option key={template.id} value={template.id}>
+                                  {template.name} - {template.total_sessions} session{template.total_sessions === 1 ? '' : 's'} - {formatCurrency(template.default_price)}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedTemplate && (
+                              <p className="mt-1 text-xs text-slate-500">
+                                Values below are copied from the template and can be adjusted for this patient.
+                              </p>
+                            )}
+                          </label>
+                        ) : (
+                          <div>
+                            <span className="text-sm font-semibold text-slate-700">Therapy type</span>
+                            <div className="mt-1 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
+                              {([
+                                ['package', 'Package'],
+                                ['single', 'Single-time therapy'],
+                              ] as const).map(([value, label]) => (
+                                <button
+                                  key={value}
+                                  type="button"
+                                  onClick={() => setForm((current) => ({
+                                    ...current,
+                                    therapyType: value,
+                                    totalSessions: value === 'single' ? '1' : current.totalSessions,
+                                    packageName: value === 'single' && !current.packageName.trim()
+                                      ? 'Single-time therapy'
+                                      : current.packageName,
+                                  }))}
+                                  className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+                                    form.therapyType === value
+                                      ? 'bg-white text-[var(--primary)] shadow-sm'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <label className="block">
                           <span className="text-sm font-semibold text-slate-700">
                             {form.therapyType === 'single' ? 'Therapy description' : 'Package name'}
@@ -574,8 +698,17 @@ export default function PatientProfilePage() {
                               min="1"
                               step="1"
                               value={form.totalSessions}
-                              onChange={(event) => setForm((current) => ({ ...current, totalSessions: event.target.value }))}
-                              disabled={form.therapyType === 'single'}
+                              onChange={(event) => {
+                                const nextValue = event.target.value
+                                setForm((current) => ({
+                                  ...current,
+                                  totalSessions: nextValue,
+                                  therapyType: current.packageSource === 'template'
+                                    ? Number(nextValue) === 1 ? 'single' : 'package'
+                                    : current.therapyType,
+                                }))
+                              }}
+                              disabled={form.packageSource === 'custom' && form.therapyType === 'single'}
                               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 disabled:bg-slate-100 disabled:text-slate-500"
                               required
                             />

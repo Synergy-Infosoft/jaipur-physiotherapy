@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic'
 const createPackageSchema = z.object({
   patient_id: z.string().uuid('Invalid patient id'),
   visit_id: z.string().uuid('Invalid visit id').nullable().optional(),
+  template_id: z.string().uuid('Invalid template id').nullable().optional(),
   package_name: z.string().trim().min(1, 'Package name is required').max(160),
   total_sessions: z.coerce.number().int().min(1, 'Total sessions must be at least 1').max(500),
   quoted_amount: z.coerce.number().min(0, 'Quoted amount cannot be negative'),
@@ -100,6 +101,7 @@ async function requireBillingAccess() {
 function getPackageRpcStatus(message: string) {
   if (/PATIENT_NOT_FOUND/i.test(message)) return { status: 404, error: 'Patient not found' }
   if (/VISIT_NOT_FOUND/i.test(message)) return { status: 404, error: 'Visit not found for this patient' }
+  if (/TEMPLATE_NOT_FOUND/i.test(message)) return { status: 404, error: 'Package template not found' }
   if (/BILLING_ACCESS_REQUIRED/i.test(message)) return { status: 403, error: 'Billing access required' }
   if (/INVALID_PACKAGE_NAME/i.test(message)) return { status: 400, error: 'Package name is required' }
   if (/INVALID_TOTAL_SESSIONS/i.test(message)) return { status: 400, error: 'Total sessions must be at least 1' }
@@ -139,6 +141,7 @@ export async function POST(request: NextRequest) {
       p_package_name: input.package_name,
       p_total_sessions: input.total_sessions,
       p_quoted_amount: input.quoted_amount,
+      p_template_id: input.template_id || null,
     })
 
     if (rpcError) {
@@ -160,6 +163,7 @@ export async function POST(request: NextRequest) {
       payload: {
         event_type: 'package_created',
         patient_package_id: packageRow.id,
+        template_id: packageRow.template_id,
         visit_id: packageRow.visit_id,
         package_name: packageRow.package_name,
         total_sessions: packageRow.total_sessions,
