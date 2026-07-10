@@ -210,12 +210,12 @@ Current setup expectation:
 - Production needs real WhatsApp Business number, approved templates, billing setup, and final webhook domain.
 - Current formatted WhatsApp template names in `.env.example` are:
   - `registration_confirmation`
-  - `payment_receipt_v2`
-  - `package_created_v2`
-  - `portal_link_v2`
-  - `session_reminder_v2`
-- `WHATSAPP_TEMPLATE_LANGUAGE` is currently `en_US` because the existing `registration_confirmation` template was approved/updated in English (US), and the formatted `_v2` utility templates were submitted in the same language.
-- Registration confirmation now sends one combined template parameter (`Token <number> | <date time>`) because Meta repeatedly rejected multi-variable registration/appointment variants as `INCORRECT_CATEGORY`.
+  - `payment_receipt`
+  - `package_created`
+  - `portal_link`
+  - `session_reminder`
+- `WHATSAPP_TEMPLATE_LANGUAGE` is currently `en_GB` because English (`en`) names were temporarily locked in Meta's deletion state and English (US) had existing approved variants. The English (UK) templates use simple names with correctly stored emojis.
+- Registration confirmation sends one combined template parameter (`Token <number> | <date time>`) to keep the template approval-friendly.
 - If Meta approves different template names, update the host environment variables instead of hard-coding names.
 - Real tokens must only be stored in `.env.local`, host environment variables, or Supabase secrets. They must never be committed.
 
@@ -251,11 +251,11 @@ META_WHATSAPP_PHONE_NUMBER_ID=your-meta-whatsapp-phone-number-id
 META_WHATSAPP_BUSINESS_ACCOUNT_ID=your-meta-whatsapp-business-account-id
 META_WHATSAPP_WEBHOOK_VERIFY_TOKEN=replace-with-a-random-webhook-verify-token
 REGISTRATION_CONFIRMATION_TEMPLATE_NAME=registration_confirmation
-PAYMENT_RECEIPT_TEMPLATE_NAME=payment_receipt_v2
-PACKAGE_CREATED_TEMPLATE_NAME=package_created_v2
-PORTAL_LINK_TEMPLATE_NAME=portal_link_v2
-SESSION_REMINDER_TEMPLATE_NAME=session_reminder_v2
-WHATSAPP_TEMPLATE_LANGUAGE=en_US
+PAYMENT_RECEIPT_TEMPLATE_NAME=payment_receipt
+PACKAGE_CREATED_TEMPLATE_NAME=package_created
+PORTAL_LINK_TEMPLATE_NAME=portal_link
+SESSION_REMINDER_TEMPLATE_NAME=session_reminder
+WHATSAPP_TEMPLATE_LANGUAGE=en_GB
 FOLLOW_UP_CRON_SECRET=replace-with-a-random-follow-up-cron-secret
 ```
 
@@ -308,7 +308,7 @@ Meaning:
   - Keep names in env because approved template names may change.
 
 - `WHATSAPP_TEMPLATE_LANGUAGE`
-  - Defaults to `en` if omitted by code, but this project currently expects `en_US` for the formatted Meta templates.
+  - Defaults to `en` if omitted by code, but this project currently expects `en_GB` for the formatted Meta templates.
 
 - `FOLLOW_UP_CRON_SECRET`
   - Shared secret checked by the `detect-follow-up-tasks` Edge Function.

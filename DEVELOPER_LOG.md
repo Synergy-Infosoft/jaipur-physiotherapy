@@ -314,15 +314,22 @@ This file records major project changes, database migrations, verification steps
 ## 2026-07-10 - WhatsApp formatted template submission
 
 ### Meta Templates
-- Updated the existing `registration_confirmation` template in Meta for language `en_US` with a formatted one-parameter body using line breaks, WhatsApp bold markdown, and clinic-appropriate emojis.
-- Submitted formatted `en_US` utility templates for:
-  - `payment_receipt_v2`
-  - `package_created_v2`
-  - `portal_link_v2`
-  - `session_reminder_v2`
-- The first `en` formatted submissions were deleted/replaced because Meta would not allow pending templates to be edited and repeatedly rejected registration/appointment variants as `INCORRECT_CATEGORY`.
+- Deleted temporary rejected and corrupted template attempts, including `appointment_update_*`, `registration_confirmation_v*`, and the `_v2` variants.
+- Submitted clean simple-name formatted templates in Meta for language `en_GB`:
+  - `registration_confirmation`
+  - `payment_receipt`
+  - `package_created`
+  - `portal_link`
+  - `session_reminder`
+- Used Unicode-safe template submission so emojis are stored as real emoji characters instead of literal `?` signs.
+- English (`en`) simple names were temporarily locked in Meta's deletion state, so English (UK) was used to keep the names simple without `_v2`.
 - Updated `src/app/api/register/route.ts` so registration sends one combined template parameter matching the repaired `registration_confirmation` template.
 
 ### Environment
-- Updated `.env.example` and local `.env.local` template names to use `WHATSAPP_TEMPLATE_LANGUAGE=en_US`, `registration_confirmation`, and the `_v2` template names above.
+- Updated `.env.example` and local `.env.local` template names to use `WHATSAPP_TEMPLATE_LANGUAGE=en_GB` and the simple template names above.
 - Hostinger/live environment variables must be updated to the same values before production sends use the formatted templates.
+
+### Verification
+- Meta template list now shows the simple-name `en_GB` templates in review with `has_question_mark = false`.
+- Removed rejected/corrupted temporary rows from the tracked app template set.
+- Existing approved `package_created` English (US) template was left in Meta.
