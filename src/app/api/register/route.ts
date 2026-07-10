@@ -219,9 +219,7 @@ export async function POST(request: NextRequest) {
           portal_url: portalUrl,
         },
         bodyParameters: [
-          result.token_number,
-          `${input.consultation_date} ${input.consultation_time}`,
-          portalUrl,
+          `Token ${result.token_number} | ${input.consultation_date} ${input.consultation_time}`,
         ],
       })
     } catch (whatsappError) {

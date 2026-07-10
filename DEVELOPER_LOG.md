@@ -310,3 +310,19 @@ This file records major project changes, database migrations, verification steps
 - Fixed the desktop Patients table so row cells match the header labels.
 - Added the missing Father Name cell, kept Age / Gender under its own column, and labeled/right-aligned the View action column.
 - Replaced corrupted separator glyphs in patient age/gender display with an ASCII hyphen.
+
+## 2026-07-10 - WhatsApp formatted template submission
+
+### Meta Templates
+- Updated the existing `registration_confirmation` template in Meta for language `en_US` with a formatted one-parameter body using line breaks, WhatsApp bold markdown, and clinic-appropriate emojis.
+- Submitted formatted `en_US` utility templates for:
+  - `payment_receipt_v2`
+  - `package_created_v2`
+  - `portal_link_v2`
+  - `session_reminder_v2`
+- The first `en` formatted submissions were deleted/replaced because Meta would not allow pending templates to be edited and repeatedly rejected registration/appointment variants as `INCORRECT_CATEGORY`.
+- Updated `src/app/api/register/route.ts` so registration sends one combined template parameter matching the repaired `registration_confirmation` template.
+
+### Environment
+- Updated `.env.example` and local `.env.local` template names to use `WHATSAPP_TEMPLATE_LANGUAGE=en_US`, `registration_confirmation`, and the `_v2` template names above.
+- Hostinger/live environment variables must be updated to the same values before production sends use the formatted templates.
