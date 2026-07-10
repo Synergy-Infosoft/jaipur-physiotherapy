@@ -303,3 +303,10 @@ This file records major project changes, database migrations, verification steps
 - `supabase db push --include-all` applied the migration to the linked Supabase project.
 - `supabase db query --linked` confirmed the seeded templates, `patient_packages.template_id`, and the new `create_patient_package_atomic(..., p_template_id uuid default null)` signature.
 - DB-level manual verification inserted one template-based package and one custom package inside a transaction; the template row had a non-null `template_id`, the custom row had `template_id = null`, and rollback left zero lingering test packages.
+
+## 2026-07-10 - Patients table column alignment fix
+
+### UI
+- Fixed the desktop Patients table so row cells match the header labels.
+- Added the missing Father Name cell, kept Age / Gender under its own column, and labeled/right-aligned the View action column.
+- Replaced corrupted separator glyphs in patient age/gender display with an ASCII hyphen.

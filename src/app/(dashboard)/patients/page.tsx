@@ -143,7 +143,7 @@ export default function PatientsPage() {
                     </div>
                     <div className="flex-1">
                       <h3 className="text-sm font-semibold text-slate-900">{p.full_name}</h3>
-                      <p className="text-xs text-slate-500">{p.age}y · {p.gender}</p>
+                      <p className="text-xs text-slate-500">{p.age}y - {p.gender}</p>
                       <div className="flex items-center gap-3 mt-1">
                         <span className="text-xs text-slate-600 flex items-center gap-1">
                           <Phone className="w-3 h-3" /> {p.phone}
@@ -164,8 +164,8 @@ export default function PatientsPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {['Patient', 'Father Name', 'Age / Gender', 'Phone', 'Registered', ''].map((h) => (
-                        <th key={h} className="text-left text-xs font-semibold text-slate-500 px-4 py-3">
+                      {['Patient', 'Father Name', 'Age / Gender', 'Phone', 'Registered', 'Action'].map((h) => (
+                        <th key={h} className={`text-xs font-semibold text-slate-500 px-4 py-3 ${h === 'Action' ? 'text-right' : 'text-left'}`}>
                           {h}
                         </th>
                       ))}
@@ -194,7 +194,10 @@ export default function PatientsPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-sm text-slate-700">{p.age}y · {p.gender}</span>
+                            <span className="text-sm text-slate-700">{p.father_name || '-'}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-sm text-slate-700">{p.age}y - {p.gender}</span>
                           </td>
                           <td className="px-4 py-3">
                             <span className="text-sm text-slate-700">{p.phone}</span>
@@ -202,12 +205,12 @@ export default function PatientsPage() {
                           <td className="px-4 py-3">
                             <span className="text-xs text-slate-500">{formatDate(p.created_at)}</span>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 text-right">
                             <button
                               onClick={(e) => { e.stopPropagation(); router.push(`/patients/${p.id}`) }}
                               className="text-xs text-[var(--primary)] hover:underline font-medium"
                             >
-                              View →
+                              View -&gt;
                             </button>
                           </td>
                         </tr>
