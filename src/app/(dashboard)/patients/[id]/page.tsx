@@ -1,31 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ComponentType, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ComponentType, type FormEvent } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import {
   ArrowLeft,
   BadgeInfo,
   Calendar,
-  CalendarClock,
-  ClipboardList,
   Clock,
   CreditCard,
   FileText,
   Hash,
-  HeartPulse,
   IndianRupee,
   Link2,
-  MapPin,
-  Megaphone,
   NotebookText,
   Package,
   Phone,
   Pill,
   Plus,
   Stethoscope,
-  User,
-  UserRound,
   Wallet,
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
@@ -177,6 +170,8 @@ export default function PatientProfilePage() {
   const [savingOverride, setSavingOverride] = useState(false)
   const [regeneratingPortalLink, setRegeneratingPortalLink] = useState(false)
   const [portalUrl, setPortalUrl] = useState<string | null>(null)
+  const paymentFormRef = useRef<HTMLElement | null>(null)
+  const relatedVisitSelectRef = useRef<HTMLSelectElement | null>(null)
 
   const loadPatientLedger = async (patientId: string) => {
     const [packagesData, paymentData] = await Promise.all([
@@ -222,6 +217,13 @@ export default function PatientProfilePage() {
     ? null
     : patientPackages.find((patientPackage) => patientPackage.id === form.target) ?? null
 
+  const focusPaymentForm = () => {
+    window.requestAnimationFrame(() => {
+      paymentFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      relatedVisitSelectRef.current?.focus({ preventScroll: true })
+    })
+  }
+
   const selectVisitForPayment = (visit: Visit) => {
     setForm((current) => ({
       ...current,
@@ -231,6 +233,7 @@ export default function PatientProfilePage() {
       packageName: visit.visit_type === 'follow_up' ? 'Single-time therapy' : 'Treatment package',
       totalSessions: visit.visit_type === 'follow_up' ? '1' : current.totalSessions || '1',
     }))
+    focusPaymentForm()
   }
 
   const resetPaymentForm = () => {
@@ -379,9 +382,16 @@ export default function PatientProfilePage() {
   }
 
   const latestVisit = visits[0]
+  const latestOverrideVisit = visits.find((visit) => visit.payment_method)
   const completedVisits = visits.filter((visit) => visit.status === 'completed').length
   const pendingVisits = visits.filter((visit) => visit.status === 'pending').length
   const patientInitial = patient.full_name.trim().charAt(0).toUpperCase() || '?'
+  const headerMeta = [
+    patient.father_name ? `Father: ${patient.father_name}` : null,
+    patient.address ? `Address: ${patient.address}` : null,
+    patient.referral_source ? `Heard about us: ${formatReferralSource(patient.referral_source)}` : null,
+    `Registered: ${formatDateTime(patient.created_at)}`,
+  ].filter(Boolean)
 
   return (
     <DashboardLayout>
@@ -445,7 +455,18 @@ export default function PatientProfilePage() {
                         Latest token #{latestVisit.token_number}
                       </span>
                     )}
+                    {latestVisit?.payment_method && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm">
+                        <Wallet className="h-3.5 w-3.5 text-emerald-600" />
+                        {latestVisit.payment_method === 'cash' ? 'Cash' : 'Online'}
+                      </span>
+                    )}
                   </div>
+                  {headerMeta.length > 0 && (
+                    <p className="mt-2 text-xs leading-relaxed" style={{ color: 'var(--text-muted, #64748b)' }}>
+                      {headerMeta.join(' | ')}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -467,210 +488,197 @@ export default function PatientProfilePage() {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-          <div className="space-y-6">
-            <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-              <div className="mb-4">
-                <h2 className="text-lg font-bold text-slate-900">Registration details</h2>
-                <p className="mt-1 text-sm text-slate-500">All patient information collected during registration.</p>
-              </div>
-              <div className="grid grid-cols-1 gap-3">
-                <DetailItem label="Full name" value={patient.full_name} icon={UserRound} tone="emerald" />
-                <DetailItem label="Father's name" value={patient.father_name} icon={User} tone="indigo" />
-                <DetailItem label="Age and gender" value={`${patient.age} years | ${patient.gender}`} icon={HeartPulse} tone="blue" />
-                <DetailItem label="Phone number" value={patient.phone} icon={Phone} tone="emerald" />
-                <DetailItem label="Address" value={patient.address} icon={MapPin} tone="purple" />
-                <DetailItem label="Heard about us" value={formatReferralSource(patient.referral_source)} icon={Megaphone} tone="amber" />
-                <DetailItem label="Registered on" value={formatDateTime(patient.created_at)} icon={CalendarClock} tone="slate" />
-              </div>
-            </section>
-
-            {latestVisit && (
-              <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-                <div className="mb-4">
-                  <h2 className="text-lg font-bold text-slate-900">Latest visit summary</h2>
-                  <p className="mt-1 text-sm text-slate-500">Most recent consultation request for quick reference.</p>
-                </div>
-                <div className="grid grid-cols-1 gap-3">
-                  <DetailItem label="Visit type" value={formatVisitType(latestVisit.visit_type)} icon={ClipboardList} tone="blue" />
-                  <DetailItem
-                    label="Consultation schedule"
-                    value={`${formatDate(latestVisit.consultation_date || latestVisit.token_date)} at ${formatTimeValue(latestVisit.consultation_time)}`}
-                    icon={Clock}
-                    tone="amber"
-                  />
-                  <DetailItem label="Registered by" value={formatRegisteredBy(latestVisit.registered_by)} icon={BadgeInfo} tone="slate" />
-                  <DetailItem label="Doctor" value={latestVisit.doctor?.name ?? 'Not assigned'} icon={Stethoscope} tone="emerald" />
-                </div>
-              </section>
-            )}
-
-            {canManageBilling && (
-              <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
-                      <Wallet className="h-5 w-5 text-[var(--primary)]" />
-                      Sell package / record payment
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-500">Creates append-only package and payment rows.</p>
+        <div className={`grid grid-cols-1 gap-6 ${canManageBilling ? 'xl:grid-cols-[420px_minmax(0,1fr)]' : ''}`}>
+          {canManageBilling && (
+            <div className="space-y-6">
+              <div className="space-y-4 xl:sticky xl:top-6">
+                <section ref={paymentFormRef} className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm scroll-mt-6">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+                        <Wallet className="h-5 w-5 text-[var(--primary)]" />
+                        Sell package / record payment
+                      </h2>
+                      <p className="mt-1 text-sm text-slate-500">Creates append-only package and payment rows.</p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={resetPaymentForm}>
+                      Clear
+                    </Button>
                   </div>
-                  <Button type="button" variant="outline" size="sm" onClick={resetPaymentForm}>
-                    Clear
-                  </Button>
-                </div>
 
-                <form className="space-y-4" onSubmit={handlePackagePaymentSubmit}>
-                  <label className="block">
-                    <span className="text-sm font-semibold text-slate-700">Apply payment to</span>
-                    <select
-                      value={form.target}
-                      onChange={(event) => setForm((current) => ({ ...current, target: event.target.value }))}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
-                    >
-                      <option value="new">New package / one-time visit</option>
-                      {activePackages.map((patientPackage) => (
-                        <option key={patientPackage.id} value={patientPackage.id}>
-                          {patientPackage.package_name} - balance {formatCurrency(patientPackage.balance)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <form className="space-y-4" onSubmit={handlePackagePaymentSubmit}>
+                    <label className="block">
+                      <span className="text-sm font-semibold text-slate-700">Apply payment to</span>
+                      <select
+                        value={form.target}
+                        onChange={(event) => setForm((current) => ({ ...current, target: event.target.value }))}
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                      >
+                        <option value="new">New package / one-time visit</option>
+                        {activePackages.map((patientPackage) => (
+                          <option key={patientPackage.id} value={patientPackage.id}>
+                            {patientPackage.package_name} - balance {formatCurrency(patientPackage.balance)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
-                  {form.target === 'new' && (
-                    <div className="grid grid-cols-1 gap-3">
-                      <div>
-                        <span className="text-sm font-semibold text-slate-700">Therapy type</span>
-                        <div className="mt-1 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
-                          {([
-                            ['package', 'Package'],
-                            ['single', 'Single-time therapy'],
-                          ] as const).map(([value, label]) => (
-                            <button
-                              key={value}
-                              type="button"
-                              onClick={() => setForm((current) => ({
-                                ...current,
-                                therapyType: value,
-                                totalSessions: value === 'single' ? '1' : current.totalSessions,
-                                packageName: value === 'single' && !current.packageName.trim()
-                                  ? 'Single-time therapy'
-                                  : current.packageName,
-                              }))}
-                              className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-                                form.therapyType === value
-                                  ? 'bg-white text-[var(--primary)] shadow-sm'
-                                  : 'text-slate-600 hover:text-slate-900'
-                              }`}
-                            >
-                              {label}
-                            </button>
-                          ))}
+                    {form.target === 'new' && (
+                      <div className="grid grid-cols-1 gap-3">
+                        <div>
+                          <span className="text-sm font-semibold text-slate-700">Therapy type</span>
+                          <div className="mt-1 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
+                            {([
+                              ['package', 'Package'],
+                              ['single', 'Single-time therapy'],
+                            ] as const).map(([value, label]) => (
+                              <button
+                                key={value}
+                                type="button"
+                                onClick={() => setForm((current) => ({
+                                  ...current,
+                                  therapyType: value,
+                                  totalSessions: value === 'single' ? '1' : current.totalSessions,
+                                  packageName: value === 'single' && !current.packageName.trim()
+                                    ? 'Single-time therapy'
+                                    : current.packageName,
+                                }))}
+                                className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+                                  form.therapyType === value
+                                    ? 'bg-white text-[var(--primary)] shadow-sm'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                      <label className="block">
-                        <span className="text-sm font-semibold text-slate-700">
-                          {form.therapyType === 'single' ? 'Therapy description' : 'Package name'}
-                        </span>
-                        <input
-                          value={form.packageName}
-                          onChange={(event) => setForm((current) => ({ ...current, packageName: event.target.value }))}
-                          placeholder={form.therapyType === 'single' ? 'Single-time therapy' : 'Treatment package'}
-                          className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
-                          required
-                        />
-                      </label>
-                      <div className="grid grid-cols-2 gap-3">
                         <label className="block">
-                          <span className="text-sm font-semibold text-slate-700">Total sessions</span>
+                          <span className="text-sm font-semibold text-slate-700">
+                            {form.therapyType === 'single' ? 'Therapy description' : 'Package name'}
+                          </span>
                           <input
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={form.totalSessions}
-                            onChange={(event) => setForm((current) => ({ ...current, totalSessions: event.target.value }))}
-                            disabled={form.therapyType === 'single'}
-                            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 disabled:bg-slate-100 disabled:text-slate-500"
-                            required
-                          />
-                        </label>
-                        <label className="block">
-                          <span className="text-sm font-semibold text-slate-700">Quoted amount</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={form.quotedAmount}
-                            onChange={(event) => setForm((current) => ({ ...current, quotedAmount: event.target.value }))}
+                            value={form.packageName}
+                            onChange={(event) => setForm((current) => ({ ...current, packageName: event.target.value }))}
+                            placeholder={form.therapyType === 'single' ? 'Single-time therapy' : 'Treatment package'}
                             className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
                             required
                           />
                         </label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <label className="block">
+                            <span className="text-sm font-semibold text-slate-700">Total sessions</span>
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={form.totalSessions}
+                              onChange={(event) => setForm((current) => ({ ...current, totalSessions: event.target.value }))}
+                              disabled={form.therapyType === 'single'}
+                              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 disabled:bg-slate-100 disabled:text-slate-500"
+                              required
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-sm font-semibold text-slate-700">Quoted amount</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={form.quotedAmount}
+                              onChange={(event) => setForm((current) => ({ ...current, quotedAmount: event.target.value }))}
+                              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                              required
+                            />
+                          </label>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {selectedExistingPackage && (
-                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-900">
-                      Balance for {selectedExistingPackage.package_name}: <strong>{formatCurrency(selectedExistingPackage.balance)}</strong>
-                    </div>
-                  )}
+                    {selectedExistingPackage && (
+                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-900">
+                        Balance for {selectedExistingPackage.package_name}: <strong>{formatCurrency(selectedExistingPackage.balance)}</strong>
+                      </div>
+                    )}
 
-                  <label className="block">
-                    <span className="text-sm font-semibold text-slate-700">Related visit</span>
-                    <select
-                      value={form.visitId}
-                      onChange={(event) => setForm((current) => ({ ...current, visitId: event.target.value }))}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
-                    >
-                      <option value="">No visit selected</option>
-                      {visits.map((visit) => (
-                        <option key={visit.id} value={visit.id}>
-                          {formatDate(visit.consultation_date || visit.token_date)} - Token #{visit.token_number}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <div className="grid grid-cols-2 gap-3">
                     <label className="block">
-                      <span className="text-sm font-semibold text-slate-700">Payment amount</span>
-                      <input
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        value={form.paymentAmount}
-                        onChange={(event) => setForm((current) => ({ ...current, paymentAmount: event.target.value }))}
-                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
-                        required
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-sm font-semibold text-slate-700">Payment method</span>
+                      <span className="text-sm font-semibold text-slate-700">Related visit</span>
                       <select
-                        value={form.paymentMethod}
-                        onChange={(event) => setForm((current) => ({
-                          ...current,
-                          paymentMethod: event.target.value as PackagePaymentForm['paymentMethod'],
-                        }))}
+                        ref={relatedVisitSelectRef}
+                        value={form.visitId}
+                        onChange={(event) => setForm((current) => ({ ...current, visitId: event.target.value }))}
                         className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
-                        required
                       >
-                        <option value="">Select method</option>
-                        <option value="cash">Cash</option>
-                        <option value="online">Online</option>
+                        <option value="">No visit selected</option>
+                        {visits.map((visit) => (
+                          <option key={visit.id} value={visit.id}>
+                            {formatDate(visit.consultation_date || visit.token_date)} - Token #{visit.token_number}
+                          </option>
+                        ))}
                       </select>
                     </label>
-                  </div>
 
-                  <Button type="submit" loading={savingPayment} className="w-full justify-center">
-                    <Plus className="h-4 w-4" />
-                    Record payment
-                  </Button>
-                </form>
-              </section>
-            )}
-          </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className="text-sm font-semibold text-slate-700">Payment amount</span>
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={form.paymentAmount}
+                          onChange={(event) => setForm((current) => ({ ...current, paymentAmount: event.target.value }))}
+                          className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                          required
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-sm font-semibold text-slate-700">Payment method</span>
+                        <select
+                          value={form.paymentMethod}
+                          onChange={(event) => setForm((current) => ({
+                            ...current,
+                            paymentMethod: event.target.value as PackagePaymentForm['paymentMethod'],
+                          }))}
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                          required
+                        >
+                          <option value="">Select method</option>
+                          <option value="cash">Cash</option>
+                          <option value="online">Online</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <Button type="submit" loading={savingPayment} className="w-full justify-center">
+                      <Plus className="h-4 w-4" />
+                      Record payment
+                    </Button>
+                  </form>
+                </section>
+
+                {isAdmin && (
+                  <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+                    <h2 className="text-lg font-bold text-slate-900">Quick actions</h2>
+                    <p className="mt-1 text-sm text-slate-500">Admin shortcuts for this patient.</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => latestOverrideVisit && openOverrideDialog(latestOverrideVisit)}
+                      disabled={!latestOverrideVisit}
+                      className="mt-4 w-full justify-center"
+                    >
+                      Override payment method
+                    </Button>
+                    {!latestOverrideVisit && (
+                      <p className="mt-2 text-xs text-slate-500">No locked payment method is available to override yet.</p>
+                    )}
+                  </section>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-6">
             <section className="rounded-3xl border border-slate-100 bg-white shadow-sm">

@@ -260,3 +260,20 @@ This file records major project changes, database migrations, verification steps
 - `supabase db push --linked --dry-run` showed only `20260709144000_allow_admin_session_daily_override.sql`.
 - `supabase db push --linked --yes` applied the migration.
 - `supabase db query --linked` confirmed the live RPC contains `actor_role = 'therapist' and sessions_today >= 2`.
+
+## 2026-07-10 - Patient detail layout cleanup
+
+### UI
+- Removed duplicate left-column Registration details and Latest visit summary cards from the patient detail page.
+- Moved non-duplicate registration fields into a small muted header meta line below the existing patient summary pills.
+- Added a payment-method pill to the patient header when the latest visit has a locked payment method.
+- Moved the Sell package / record payment form to the top of the left column and made it sticky on wide screens.
+- Added an admin Quick actions card with a shortcut to the same payment-method override dialog used by Visit history.
+- Updated Visit history's Sell package / payment button to scroll to and focus the single sidebar payment form while preselecting that visit.
+
+### Verification
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `npm run build` passed.
+- Manually checked the patient detail page with browser screenshots at 1440px desktop and 390px mobile widths.
+- Confirmed no duplicate Registration details or Latest visit summary cards, no horizontal overflow, and payment form placement/stacking works at both widths.
