@@ -347,6 +347,7 @@ src/app/
   (dashboard)/therapist/page.tsx     Therapist package/session workbench
   (dashboard)/follow-up/page.tsx     Follow-up task queue
   (dashboard)/reports/page.tsx       Admin master report
+  (dashboard)/whatsapp-logs/page.tsx Admin WhatsApp delivery/failure log table
   portal/[token]/page.tsx            Public patient portal
   api/register/route.ts              Public/manual patient registration API
   api/public-config/route.ts         Public clinic config + doctor list API
@@ -356,6 +357,7 @@ src/app/
   api/admin/payments/route.ts        Append-only payment API
   api/admin/cash-reconciliation/route.ts Cash shift close/report API
   api/admin/reports/route.ts         Admin master report aggregate API
+  api/admin/whatsapp-logs/route.ts   Admin WhatsApp notification log API
   api/admin/staff-users/route.ts     Admin staff create/delete/list API
   api/admin/visits/[id]/payment-method/route.ts Admin payment method override API
   api/admin/patients/[id]/portal-link/route.ts Admin portal link regeneration API
@@ -585,6 +587,7 @@ All route paths are relative to `NEXT_PUBLIC_APP_URL`.
 | `PATCH` | `/api/admin/visits/[id]/payment-method` | Admin | Overrides locked visit payment method with mandatory reason using `override_payment_method_atomic`. |
 | `POST` | `/api/admin/patients/[id]/portal-link` | Admin | Regenerates/reuses a portal link for a patient. |
 | `GET` | `/api/admin/reports` | Admin | Read-only aggregate master report across collections, packages, sessions, overrides, follow-ups, and WhatsApp health. |
+| `GET` | `/api/admin/whatsapp-logs` | Admin | Read-only WhatsApp notification log list with status/type/date/search filters and summary counts. |
 | `GET` | `/api/admin/staff-users` | Admin | Lists staff profiles merged with Supabase Auth user emails. |
 | `POST` | `/api/admin/staff-users` | Admin | Creates Supabase Auth user and matching `profiles` row for receptionist/doctor/therapist/follow-up agent. |
 | `DELETE` | `/api/admin/staff-users?id=<uuid>` | Admin | Deletes a staff Supabase Auth user. Prevents deleting the currently signed-in admin. |

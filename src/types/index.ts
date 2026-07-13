@@ -388,6 +388,22 @@ export interface WhatsAppNotification {
   created_at: string
 }
 
+export interface WhatsAppNotificationLog extends WhatsAppNotification {
+  patient?: Pick<Patient, 'id' | 'full_name' | 'phone'> | null
+}
+
+export interface WhatsAppLogSummary {
+  total: number
+  queued: number
+  sent: number
+  failed: number
+}
+
+export interface WhatsAppLogsResult {
+  logs: WhatsAppNotificationLog[]
+  summary: WhatsAppLogSummary
+}
+
 export interface WorkingHoursSlot {
   start: string
   end: string

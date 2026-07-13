@@ -22,6 +22,7 @@ import type {
   PaymentTransaction,
   LedgerPaymentMethod,
   WhatsAppNotification,
+  WhatsAppLogsResult,
   PaymentMethodOverrideVisit,
   CashReconciliationRecord,
   MarkSessionResult,
@@ -696,6 +697,38 @@ export async function getAdminMasterReport(filters: {
   }
 
   return result.report as AdminMasterReport
+}
+
+export async function getWhatsAppLogs(filters: {
+  date_from?: string
+  date_to?: string
+  status?: string
+  type?: string
+  q?: string
+  limit?: number
+} = {}): Promise<WhatsAppLogsResult> {
+  const params = new URLSearchParams()
+  if (filters.date_from) params.set('date_from', filters.date_from)
+  if (filters.date_to) params.set('date_to', filters.date_to)
+  if (filters.status) params.set('status', filters.status)
+  if (filters.type) params.set('type', filters.type)
+  if (filters.q) params.set('q', filters.q)
+  if (filters.limit) params.set('limit', String(filters.limit))
+
+  const response = await fetch(`/api/admin/whatsapp-logs?${params.toString()}`, {
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to load WhatsApp logs')
+  }
+
+  return {
+    logs: result.logs ?? [],
+    summary: result.summary ?? { total: 0, queued: 0, sent: 0, failed: 0 },
+  } as WhatsAppLogsResult
 }
 
 export async function getDoctors(): Promise<Doctor[]> {

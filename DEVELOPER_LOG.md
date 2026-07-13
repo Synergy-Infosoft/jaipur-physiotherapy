@@ -333,3 +333,19 @@ This file records major project changes, database migrations, verification steps
 - Meta template list now shows the simple-name `en_GB` templates in review with `has_question_mark = false`.
 - Removed rejected/corrupted temporary rows from the tracked app template set.
 - Existing approved `package_created` English (US) template was left in Meta.
+
+## 2026-07-13 - Admin WhatsApp log page
+
+### UI
+- Added admin-only `/whatsapp-logs` dashboard page.
+- Added WhatsApp Logs option to the admin sidebar.
+- Page shows summary counts, status/type/date/search filters, and a read-only table with patient, template, status, Meta message id, error message, and payload summary.
+
+### Backend
+- Added `GET /api/admin/whatsapp-logs` for read-only filtered `whatsapp_notifications` access.
+- Added `dataService.getWhatsAppLogs` and typed log/summary result objects.
+
+### Verification
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `npm run build` passed and included `/whatsapp-logs` plus `/api/admin/whatsapp-logs`.
