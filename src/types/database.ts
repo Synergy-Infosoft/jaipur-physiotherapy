@@ -240,6 +240,34 @@ export interface Database {
           },
         ]
       }
+      follow_up_reminder_templates: {
+        Row: {
+          id: string
+          label: string
+          meta_template_name: string
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          label: string
+          meta_template_name: string
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['follow_up_reminder_templates']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'follow_up_reminder_templates_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       payment_transactions: {
         Row: {
           id: string

@@ -405,3 +405,27 @@ This file records major project changes, database migrations, verification steps
 
 ### Verification
 - `npm run check` passed.
+
+## 2026-07-13 - Follow-up queue compact layout and WhatsApp reminders
+
+### Schema
+- Added migration `supabase/migrations/20260713175000_follow_up_reminder_templates.sql`.
+- Added `follow_up_reminder_templates` for admin-managed WhatsApp reminder template mappings.
+- Seeded one starter row: `Missed session reminder` -> `follow_up_reminder`.
+- RLS mirrors the package-template pattern: admin can manage rows, follow-up agents can read active rows, no hard-delete policy.
+
+### Backend
+- Added `GET/POST /api/admin/follow-up-reminder-templates` for admin management and follow-up-agent reads.
+- Added `POST /api/follow-up/tasks/[id]/remind` to send a Meta template reminder and log it as `whatsapp_notifications.notification_type = follow_up`.
+- Reminder sends are non-blocking and do not change task status.
+- Updated `GET /api/follow-up/tasks` to return the latest follow-up WhatsApp reminder log per patient from `whatsapp_notifications`.
+
+### UI
+- Reworked `/follow-up` from large always-expanded cards into compact task rows.
+- Added Pending-only / All-status toggle; pending tasks sort oldest-created first.
+- Moved status/outcome/notes editing into a Manage modal.
+- Added WhatsApp reminder template dropdown and Send action inside the same modal.
+- Added Follow-up Reminder Templates management section to `/settings`.
+
+### Verification
+- `npm run check` passed.

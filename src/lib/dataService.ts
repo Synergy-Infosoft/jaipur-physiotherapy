@@ -18,6 +18,7 @@ import type {
   ClinicSettings,
   UserRole,
   PackageTemplate,
+  FollowUpReminderTemplate,
   PatientPackage,
   PaymentTransaction,
   LedgerPaymentMethod,
@@ -85,6 +86,13 @@ export interface PackageTemplatePayload {
   is_active?: boolean
 }
 
+export interface FollowUpReminderTemplatePayload {
+  id?: string
+  label: string
+  meta_template_name: string
+  is_active?: boolean
+}
+
 export interface RecordPaymentPayload {
   patient_id: string
   patient_package_id?: string | null
@@ -121,6 +129,13 @@ export interface UpdateFollowUpTaskPayload {
   status: FollowUpStatus
   outcome?: FollowUpOutcome | null
   outcome_notes?: string | null
+}
+
+export interface SendFollowUpReminderResult {
+  notificationId: string | null
+  status: 'queued' | 'sent' | 'failed'
+  metaMessageId: string | null
+  errorMessage: string | null
 }
 
 // ─── Patients ─────────────────────────────────────────────────────────────────
@@ -540,6 +555,54 @@ export async function updatePackageTemplate(payload: PackageTemplatePayload & { 
   return result.template as PackageTemplate
 }
 
+export async function getFollowUpReminderTemplates(): Promise<FollowUpReminderTemplate[]> {
+  const response = await fetch('/api/admin/follow-up-reminder-templates', {
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to load follow-up reminder templates')
+  }
+
+  return (result.templates ?? []) as FollowUpReminderTemplate[]
+}
+
+export async function createFollowUpReminderTemplate(
+  payload: FollowUpReminderTemplatePayload
+): Promise<FollowUpReminderTemplate> {
+  const response = await fetch('/api/admin/follow-up-reminder-templates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to create follow-up reminder template')
+  }
+
+  return result.template as FollowUpReminderTemplate
+}
+
+export async function updateFollowUpReminderTemplate(
+  payload: FollowUpReminderTemplatePayload & { id: string }
+): Promise<FollowUpReminderTemplate> {
+  const response = await fetch('/api/admin/follow-up-reminder-templates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to update follow-up reminder template')
+  }
+
+  return result.template as FollowUpReminderTemplate
+}
+
 export async function recordPayment(payload: RecordPaymentPayload): Promise<RecordPaymentResult> {
   const response = await fetch('/api/admin/payments', {
     method: 'POST',
@@ -713,6 +776,21 @@ export async function updateFollowUpTask(payload: UpdateFollowUpTaskPayload): Pr
   }
 
   return result.task as FollowUpTask
+}
+
+export async function sendFollowUpReminder(taskId: string, templateId: string): Promise<SendFollowUpReminderResult> {
+  const response = await fetch(`/api/follow-up/tasks/${encodeURIComponent(taskId)}/remind`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ template_id: templateId }),
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to send follow-up reminder')
+  }
+
+  return result.reminder as SendFollowUpReminderResult
 }
 
 export async function getAdminMasterReport(filters: {

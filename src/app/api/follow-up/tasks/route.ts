@@ -79,7 +79,7 @@ export async function GET() {
     let query = auth.admin
       .from('follow_up_tasks')
       .select('*, patient:patients(*), patient_package:patient_packages(*)')
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
 
     if (auth.role === 'follow_up_agent') {
       query = query.eq('assigned_to', auth.userId)
@@ -89,11 +89,21 @@ export async function GET() {
     if (error) throw error
 
     const rows = (data ?? []) as Array<{
+      patient_id: string
       patient_package_id: string
       patient_package?: Record<string, unknown> | null
     }>
     const packageIds = Array.from(new Set(rows.map((task) => task.patient_package_id).filter(Boolean)))
+    const patientIds = Array.from(new Set(rows.map((task) => task.patient_id).filter(Boolean)))
     const sessionsByPackage = new Map<string, number>()
+    const lastReminderByPatient = new Map<string, {
+      id: string
+      created_at: string
+      status: 'queued' | 'sent' | 'failed'
+      template_label: string | null
+      template_name: string | null
+      error_message: string | null
+    }>()
 
     if (packageIds.length > 0) {
       const { data: sessions, error: sessionsError } = await auth.admin
@@ -109,6 +119,42 @@ export async function GET() {
       }
     }
 
+    if (patientIds.length > 0) {
+      const { data: reminders, error: reminderError } = await auth.admin
+        .from('whatsapp_notifications')
+        .select('id, patient_id, payload, status, error_message, created_at')
+        .in('patient_id', patientIds)
+        .eq('notification_type', 'follow_up')
+        .order('created_at', { ascending: false })
+
+      if (reminderError) throw reminderError
+
+      for (const reminder of (reminders ?? []) as Array<{
+        id: string
+        patient_id: string
+        payload: Record<string, unknown> | null
+        status: 'queued' | 'sent' | 'failed'
+        error_message: string | null
+        created_at: string
+      }>) {
+        if (lastReminderByPatient.has(reminder.patient_id)) continue
+        lastReminderByPatient.set(reminder.patient_id, {
+          id: reminder.id,
+          created_at: reminder.created_at,
+          status: reminder.status,
+          template_label: typeof reminder.payload?.follow_up_reminder_template_label === 'string'
+            ? reminder.payload.follow_up_reminder_template_label
+            : null,
+          template_name: typeof reminder.payload?.follow_up_reminder_template_name === 'string'
+            ? reminder.payload.follow_up_reminder_template_name
+            : typeof reminder.payload?.whatsapp_template_name === 'string'
+              ? reminder.payload.whatsapp_template_name
+              : null,
+          error_message: reminder.error_message,
+        })
+      }
+    }
+
     const tasks = rows.map((task) => ({
       ...task,
       patient_package: task.patient_package
@@ -117,6 +163,7 @@ export async function GET() {
           sessions_used: sessionsByPackage.get(task.patient_package_id) ?? 0,
         }
         : task.patient_package,
+      last_reminder: lastReminderByPatient.get(task.patient_id) ?? null,
     }))
 
     return jsonResponse({ tasks })

@@ -27,6 +27,16 @@ export interface FollowUpTask {
   resolved_at: string | null
   patient?: Patient | null
   patient_package?: PatientPackage | null
+  last_reminder?: FollowUpReminderLog | null
+}
+
+export interface FollowUpReminderLog {
+  id: string
+  created_at: string
+  status: WhatsAppNotificationStatus
+  template_label: string | null
+  template_name: string | null
+  error_message: string | null
 }
 
 export interface AdminReportStaffMember {
@@ -274,6 +284,15 @@ export interface PackageTemplate {
   name: string
   total_sessions: number
   default_price: number
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+}
+
+export interface FollowUpReminderTemplate {
+  id: string
+  label: string
+  meta_template_name: string
   is_active: boolean
   created_by: string | null
   created_at: string

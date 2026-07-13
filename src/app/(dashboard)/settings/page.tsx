@@ -6,6 +6,7 @@ import {
   Check,
   Clock,
   Image as ImageIcon,
+  MessageCircle,
   Package,
   Palette,
   Plus,
@@ -36,7 +37,7 @@ import {
   normalizeHexColor,
 } from '@/lib/brandTheme'
 import * as dataService from '@/lib/dataService'
-import type { ClinicDaySchedule, ClinicSettings, Doctor, PackageTemplate, UserRole } from '@/types'
+import type { ClinicDaySchedule, ClinicSettings, Doctor, FollowUpReminderTemplate, PackageTemplate, UserRole } from '@/types'
 
 const dayOptions = [
   { value: 1, label: 'Monday', short: 'Mon' },
@@ -70,6 +71,7 @@ const settingsSections = [
   { id: 'staff', label: 'Staff Users', description: 'Secure login accounts', icon: UserPlus },
   { id: 'doctors', label: 'Doctor List', description: 'Shown on registration', icon: Users },
   { id: 'package-templates', label: 'Package Templates', description: 'Reusable package presets', icon: Package },
+  { id: 'follow-up-reminders', label: 'Follow-up Reminders', description: 'WhatsApp reminder templates', icon: MessageCircle },
   { id: 'hours', label: 'Registration Hours', description: 'Open days and slots', icon: Clock },
 ] as const
 
@@ -177,12 +179,17 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<ClinicSettings>(emptySettings)
   const [doctors, setDoctors] = useState<Doctor[]>([])
   const [packageTemplates, setPackageTemplates] = useState<PackageTemplate[]>([])
+  const [followUpReminderTemplates, setFollowUpReminderTemplates] = useState<FollowUpReminderTemplate[]>([])
   const [staffUsers, setStaffUsers] = useState<dataService.StaffUser[]>([])
   const [newDoctor, setNewDoctor] = useState({ name: '', specialization: '' })
   const [newPackageTemplate, setNewPackageTemplate] = useState({
     name: '',
     total_sessions: '1',
     default_price: '',
+  })
+  const [newFollowUpReminderTemplate, setNewFollowUpReminderTemplate] = useState({
+    label: '',
+    meta_template_name: '',
   })
   const [newStaffUser, setNewStaffUser] = useState({
     full_name: '',
@@ -199,10 +206,13 @@ export default function SettingsPage() {
   const [savingDoctorId, setSavingDoctorId] = useState<string | null>(null)
   const [addingPackageTemplate, setAddingPackageTemplate] = useState(false)
   const [savingPackageTemplateId, setSavingPackageTemplateId] = useState<string | null>(null)
+  const [addingFollowUpReminderTemplate, setAddingFollowUpReminderTemplate] = useState(false)
+  const [savingFollowUpReminderTemplateId, setSavingFollowUpReminderTemplateId] = useState<string | null>(null)
 
   const brandPreview = useMemo(() => normalizeBrandTheme(settings), [settings])
   const activeDoctors = doctors.filter((doctor) => doctor.is_active)
   const activePackageTemplates = packageTemplates.filter((template) => template.is_active)
+  const activeFollowUpReminderTemplates = followUpReminderTemplates.filter((template) => template.is_active)
 
   useEffect(() => {
     if (loading || authLoading) return
@@ -215,16 +225,18 @@ export default function SettingsPage() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const [clinicSettings, doctorList, staffList, templateList] = await Promise.all([
+        const [clinicSettings, doctorList, staffList, templateList, reminderTemplateList] = await Promise.all([
           dataService.getClinicSettings(),
           dataService.getAllDoctors(),
           dataService.getStaffUsers(),
           dataService.getPackageTemplates(),
+          dataService.getFollowUpReminderTemplates(),
         ])
         setSettings(clinicSettings)
         setDoctors(doctorList)
         setStaffUsers(staffList)
         setPackageTemplates(templateList)
+        setFollowUpReminderTemplates(reminderTemplateList)
       } catch (error) {
         console.error('Failed to load settings:', error)
         toast.error('Unable to load settings')
@@ -387,6 +399,11 @@ export default function SettingsPage() {
   const refreshPackageTemplates = async () => {
     const templates = await dataService.getPackageTemplates()
     setPackageTemplates(templates)
+  }
+
+  const refreshFollowUpReminderTemplates = async () => {
+    const templates = await dataService.getFollowUpReminderTemplates()
+    setFollowUpReminderTemplates(templates)
   }
 
   const refreshStaffUsers = async () => {
@@ -643,6 +660,96 @@ export default function SettingsPage() {
       toast.error(error instanceof Error ? error.message : 'Unable to update package template')
     } finally {
       setSavingPackageTemplateId(null)
+    }
+  }
+
+  const addFollowUpReminderTemplate = async () => {
+    const label = newFollowUpReminderTemplate.label.trim()
+    const metaTemplateName = newFollowUpReminderTemplate.meta_template_name.trim()
+
+    if (label.length < 2) {
+      toast.error('Reminder label is required')
+      return
+    }
+    if (metaTemplateName.length < 2) {
+      toast.error('Meta template name is required')
+      return
+    }
+
+    setAddingFollowUpReminderTemplate(true)
+    try {
+      await dataService.createFollowUpReminderTemplate({
+        label,
+        meta_template_name: metaTemplateName,
+        is_active: true,
+      })
+      setNewFollowUpReminderTemplate({ label: '', meta_template_name: '' })
+      await refreshFollowUpReminderTemplates()
+      toast.success('Follow-up reminder template added')
+    } catch (error) {
+      console.error('Failed to add follow-up reminder template:', error)
+      toast.error(error instanceof Error ? error.message : 'Unable to add follow-up reminder template')
+    } finally {
+      setAddingFollowUpReminderTemplate(false)
+    }
+  }
+
+  const updateFollowUpReminderTemplateField = <K extends keyof FollowUpReminderTemplate>(
+    id: string,
+    key: K,
+    value: FollowUpReminderTemplate[K]
+  ) => {
+    setFollowUpReminderTemplates((current) => current.map((template) => (
+      template.id === id ? { ...template, [key]: value } : template
+    )))
+  }
+
+  const saveFollowUpReminderTemplate = async (template: FollowUpReminderTemplate) => {
+    const label = template.label.trim()
+    const metaTemplateName = template.meta_template_name.trim()
+    if (label.length < 2) {
+      toast.error('Reminder label is required')
+      return
+    }
+    if (metaTemplateName.length < 2) {
+      toast.error('Meta template name is required')
+      return
+    }
+
+    setSavingFollowUpReminderTemplateId(template.id)
+    try {
+      await dataService.updateFollowUpReminderTemplate({
+        id: template.id,
+        label,
+        meta_template_name: metaTemplateName,
+        is_active: template.is_active,
+      })
+      await refreshFollowUpReminderTemplates()
+      toast.success('Follow-up reminder template updated')
+    } catch (error) {
+      console.error('Failed to update follow-up reminder template:', error)
+      toast.error(error instanceof Error ? error.message : 'Unable to update follow-up reminder template')
+    } finally {
+      setSavingFollowUpReminderTemplateId(null)
+    }
+  }
+
+  const toggleFollowUpReminderTemplateActive = async (template: FollowUpReminderTemplate) => {
+    setSavingFollowUpReminderTemplateId(template.id)
+    try {
+      await dataService.updateFollowUpReminderTemplate({
+        id: template.id,
+        label: template.label.trim(),
+        meta_template_name: template.meta_template_name.trim(),
+        is_active: !template.is_active,
+      })
+      await refreshFollowUpReminderTemplates()
+      toast.success(!template.is_active ? 'Follow-up reminder template activated' : 'Follow-up reminder template hidden')
+    } catch (error) {
+      console.error('Failed to update follow-up reminder template status:', error)
+      toast.error(error instanceof Error ? error.message : 'Unable to update follow-up reminder template')
+    } finally {
+      setSavingFollowUpReminderTemplateId(null)
     }
   }
 
@@ -1202,6 +1309,95 @@ export default function SettingsPage() {
                             {template.is_active
                               ? `Visible as ${template.name} - ${template.total_sessions} sessions - ${formatCurrency(template.default_price)}`
                               : 'Hidden from staff picker'}
+                          </span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {activeSection === 'follow-up-reminders' && (
+                <section className="card p-5 space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 border-b border-slate-100 pb-4">
+                    <div className="flex items-center gap-2">
+                      <MessageCircle className="w-5 h-5 text-[var(--primary)]" />
+                      <div>
+                        <h2 className="text-base font-semibold text-slate-900">Follow-up Reminder Templates</h2>
+                        <p className="text-xs text-slate-500">Map agent-friendly reminder labels to approved Meta WhatsApp templates.</p>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                      {activeFollowUpReminderTemplates.length} active
+                    </span>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm font-semibold text-slate-900 mb-1">Add a follow-up reminder</p>
+                    <p className="mb-3 text-xs text-slate-500">The Meta template name must exactly match an approved WhatsApp template.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+                      <Input
+                        label="Agent label"
+                        placeholder="Missed session reminder"
+                        value={newFollowUpReminderTemplate.label}
+                        onChange={(event) => setNewFollowUpReminderTemplate((current) => ({ ...current, label: event.target.value }))}
+                      />
+                      <Input
+                        label="Meta template name"
+                        placeholder="follow_up_reminder"
+                        value={newFollowUpReminderTemplate.meta_template_name}
+                        onChange={(event) => setNewFollowUpReminderTemplate((current) => ({ ...current, meta_template_name: event.target.value }))}
+                      />
+                      <Button type="button" onClick={addFollowUpReminderTemplate} loading={addingFollowUpReminderTemplate} className="min-w-28">
+                        <Plus className="w-4 h-4" />
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {followUpReminderTemplates.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center">
+                        <MessageCircle className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                        <p className="text-sm font-semibold text-slate-800">No reminder templates found</p>
+                        <p className="text-xs text-slate-500 mt-1">Add one above after the Meta template is approved.</p>
+                      </div>
+                    ) : followUpReminderTemplates.map((template) => (
+                      <div key={template.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+                          <Input
+                            label="Agent label"
+                            value={template.label}
+                            onChange={(event) => updateFollowUpReminderTemplateField(template.id, 'label', event.target.value)}
+                          />
+                          <Input
+                            label="Meta template name"
+                            value={template.meta_template_name}
+                            onChange={(event) => updateFollowUpReminderTemplateField(template.id, 'meta_template_name', event.target.value)}
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <Button type="button" variant="outline" onClick={() => saveFollowUpReminderTemplate(template)} loading={savingFollowUpReminderTemplateId === template.id}>
+                              <Save className="w-4 h-4" />
+                              Save
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={template.is_active ? 'outline' : 'success'}
+                              onClick={() => toggleFollowUpReminderTemplateActive(template)}
+                              loading={savingFollowUpReminderTemplateId === template.id}
+                              title={template.is_active ? 'Hide from reminder picker' : 'Show in reminder picker'}
+                            >
+                              {template.is_active ? <Power className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                              {template.is_active ? 'Hide' : 'Activate'}
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">
+                          Reminder status:{' '}
+                          <span className={template.is_active ? 'text-emerald-700 font-semibold' : 'text-slate-500 font-semibold'}>
+                            {template.is_active
+                              ? `Visible as ${template.label} - ${template.meta_template_name}`
+                              : 'Hidden from follow-up reminder picker'}
                           </span>
                         </p>
                       </div>
