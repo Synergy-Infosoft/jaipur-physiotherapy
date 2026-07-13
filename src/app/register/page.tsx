@@ -593,7 +593,7 @@ export default function RegisterPage() {
                           <option value="">Any available doctor</option>
                           {doctors.map((d) => (
                             <option key={d.id} value={d.id}>
-                              {d.name} ? {d.specialization || 'General'}
+                              {d.name} - {d.specialization || 'General'}
                             </option>
                           ))}
                         </select>
