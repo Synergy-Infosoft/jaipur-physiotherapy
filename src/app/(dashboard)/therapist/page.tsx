@@ -84,6 +84,23 @@ function getStatusClass(status: TherapistPackageHistoryItem['status']) {
   return 'bg-blue-50 text-blue-700 border-blue-200'
 }
 
+function getSessionsRemaining(patientPackage: TherapistPackageHistoryItem) {
+  return patientPackage.sessions_remaining
+}
+
+function isTherapyMarkable(patientPackage: TherapistPackageHistoryItem) {
+  return patientPackage.status === 'active' && getSessionsRemaining(patientPackage) > 0
+}
+
+function getTherapyStatusLabel(patientPackage: TherapistPackageHistoryItem) {
+  return getSessionsRemaining(patientPackage) <= 0 ? 'done' : patientPackage.status
+}
+
+function getTherapyStatusClass(patientPackage: TherapistPackageHistoryItem) {
+  if (getSessionsRemaining(patientPackage) <= 0) return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  return getStatusClass(patientPackage.status)
+}
+
 function getPackagesForTab(patient: TherapistPatientCard, tab: TherapistSessionTab) {
   if (tab === 'completed') return patient.completed_packages
   if (tab === 'single') return patient.single_time_packages
@@ -98,8 +115,8 @@ function getLatestSessionAt(packages: TherapistPackageHistoryItem[]) {
 
 function getDefaultSelectedPackage(patient: TherapistPatientCard | null, tab: TherapistSessionTab) {
   if (!patient) return null
-  const tabPackages = getPackagesForTab(patient, tab)
-  return patient.active_packages[0]?.id ?? tabPackages[0]?.id ?? patient.package_history[0]?.id ?? null
+  const tabPackages = getPackagesForTab(patient, tab).filter(isTherapyMarkable)
+  return tabPackages[0]?.id ?? patient.package_history.find(isTherapyMarkable)?.id ?? null
 }
 
 function getEmptyLabel(tab: TherapistSessionTab) {
@@ -179,17 +196,26 @@ export default function TherapistPage() {
     if (!authLoading && !canAccess) setLoading(false)
   }, [authLoading, canAccess, loadPatients])
 
+  const selectableTherapies = useMemo(
+    () => selectedPatient?.package_history.filter(isTherapyMarkable) ?? [],
+    [selectedPatient]
+  )
+
   useEffect(() => {
     if (!selectedPatient) return
-    setSelectedPackageId((current) => current ?? getDefaultSelectedPackage(selectedPatient, activeTab))
-  }, [activeTab, selectedPatient])
+    setSelectedPackageId((current) => {
+      if (current && selectableTherapies.some((patientPackage) => patientPackage.id === current)) return current
+      return selectableTherapies[0]?.id ?? null
+    })
+  }, [selectableTherapies, selectedPatient])
 
   const currentPackage = useMemo(() => {
-    if (!selectedPatient) return null
-    const fallbackId = getDefaultSelectedPackage(selectedPatient, activeTab)
-    const id = selectedPackageId ?? fallbackId
-    return selectedPatient.package_history.find((item) => item.id === id) ?? null
-  }, [activeTab, selectedPackageId, selectedPatient])
+    const fallbackId = selectableTherapies[0]?.id ?? null
+    const id = selectedPackageId && selectableTherapies.some((patientPackage) => patientPackage.id === selectedPackageId)
+      ? selectedPackageId
+      : fallbackId
+    return selectableTherapies.find((item) => item.id === id) ?? null
+  }, [selectableTherapies, selectedPackageId])
 
   const currentSessionCounts = useMemo(
     () => getSessionCountsByDate(currentPackage),
@@ -239,10 +265,7 @@ export default function TherapistPage() {
   }
 
   const markFromCard = (patient: TherapistPatientCard) => {
-    const markablePackages = patient.active_packages.filter((patientPackage) => {
-      if (activeTab === 'single') return patientPackage.total_sessions === 1
-      return activeTab === 'active'
-    })
+    const markablePackages = patient.active_packages.filter(isTherapyMarkable)
 
     if (markablePackages.length === 1) {
       markSession(markablePackages[0])
@@ -353,11 +376,8 @@ export default function TherapistPage() {
               <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
                 {patients.map((patient) => {
                   const visiblePackages = getPackagesForTab(patient, activeTab)
-                  const markablePackages = patient.active_packages.filter((patientPackage) => {
-                    if (activeTab === 'single') return patientPackage.total_sessions === 1
-                    return activeTab === 'active'
-                  })
-                  const canMark = markablePackages.some((patientPackage) => patientPackage.sessions_remaining > 0)
+                  const markablePackages = patient.active_packages.filter(isTherapyMarkable)
+                  const canMark = markablePackages.length > 0 && activeTab !== 'completed'
                   const aggregateUsed = visiblePackages.reduce((sum, patientPackage) => sum + patientPackage.sessions_used, 0)
                   const aggregateRemaining = visiblePackages.reduce((sum, patientPackage) => sum + patientPackage.sessions_remaining, 0)
                   const aggregateToday = visiblePackages.reduce((sum, patientPackage) => sum + patientPackage.today_sessions, 0)
@@ -393,8 +413,8 @@ export default function TherapistPage() {
                                   <p className="truncate text-sm font-bold text-slate-900">{patientPackage.package_name}</p>
                                   <p className="mt-0.5 text-xs text-slate-500">{getPackageKindLabel(patientPackage)}</p>
                                 </div>
-                                <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold capitalize', getStatusClass(patientPackage.status))}>
-                                  {patientPackage.sessions_remaining <= 0 ? 'done' : patientPackage.status}
+                                <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold capitalize', getTherapyStatusClass(patientPackage))}>
+                                  {getTherapyStatusLabel(patientPackage)}
                                 </span>
                               </div>
                               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
@@ -430,7 +450,7 @@ export default function TherapistPage() {
                           type="button"
                           size="sm"
                           onClick={() => markFromCard(patient)}
-                          disabled={!canMark || Boolean(markingPackageId) || activeTab === 'completed'}
+                          disabled={!canMark || Boolean(markingPackageId)}
                         >
                           <CalendarCheck className="h-4 w-4" />
                           {activeTab === 'completed' ? 'Done' : markablePackages.length > 1 ? 'Choose' : 'Mark'}
@@ -485,64 +505,78 @@ export default function TherapistPage() {
         size="full"
       >
         {selectedPatient && (
-          <div className="space-y-5 p-5">
-            <section className="grid grid-cols-1 gap-3 lg:grid-cols-[0.9fr_1.1fr]">
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+          <div className="space-y-3 p-4">
+            <section className="grid grid-cols-1 gap-3 lg:grid-cols-[0.75fr_1.25fr]">
+              <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Patient</p>
-                <h3 className="mt-1 text-lg font-bold text-slate-900">{selectedPatient.patient_name}</h3>
+                <h3 className="mt-0.5 text-base font-bold text-slate-900">{selectedPatient.patient_name}</h3>
                 {selectedPatient.patient_phone && (
-                  <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-slate-500">
-                    <Phone className="h-4 w-4" />
+                  <p className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-slate-500">
+                    <Phone className="h-3.5 w-3.5" />
                     {selectedPatient.patient_phone}
                   </p>
                 )}
               </div>
 
-              <div className="rounded-xl border border-slate-100 bg-white p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Choose therapy</p>
-                <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                  {selectedPatient.package_history.map((patientPackage) => (
-                    <button
-                      key={patientPackage.id}
-                      type="button"
-                      onClick={() => setSelectedPackageId(patientPackage.id)}
-                      className={cn(
-                        'min-w-52 rounded-xl border p-3 text-left transition',
-                        currentPackage?.id === patientPackage.id
-                          ? 'border-[var(--primary)] bg-emerald-50'
-                          : 'border-slate-100 bg-slate-50 hover:border-slate-200'
-                      )}
-                    >
-                      <p className="truncate text-sm font-bold text-slate-900">{patientPackage.package_name}</p>
-                      <p className="mt-1 text-xs text-slate-500">{getPackageKindLabel(patientPackage)}</p>
-                      <p className="mt-2 text-xs font-bold text-slate-600">
-                        Used {patientPackage.sessions_used} / {patientPackage.total_sessions}
-                      </p>
-                    </button>
-                  ))}
+              <div className="rounded-lg border border-slate-100 bg-white p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Choose therapy</p>
+                  <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+                    {selectableTherapies.length} available
+                  </span>
+                </div>
+                <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                  {selectableTherapies.length === 0 ? (
+                    <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+                      No active therapy has sessions remaining.
+                    </p>
+                  ) : (
+                    selectableTherapies.map((patientPackage) => (
+                      <button
+                        key={patientPackage.id}
+                        type="button"
+                        onClick={() => setSelectedPackageId(patientPackage.id)}
+                        className={cn(
+                          'flex min-w-64 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition',
+                          currentPackage?.id === patientPackage.id
+                            ? 'border-[var(--primary)] bg-emerald-50'
+                            : 'border-slate-100 bg-slate-50 hover:border-slate-200'
+                        )}
+                      >
+                        <span className="min-w-0 truncate text-sm font-bold text-slate-900">{patientPackage.package_name}</span>
+                        <span className="shrink-0 text-[11px] font-bold text-slate-500">
+                          Used {patientPackage.sessions_used}/{patientPackage.total_sessions} | Left {getSessionsRemaining(patientPackage)}
+                        </span>
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
             </section>
 
-            <section className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 lg:col-span-2">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Selected therapy</p>
-                <h3 className="mt-1 text-lg font-bold text-slate-900">{currentPackage?.package_name ?? 'No package selected'}</h3>
-                <p className="mt-1 text-sm text-slate-500">{currentPackage ? getPackageKindLabel(currentPackage) : 'Select a therapy above.'}</p>
-              </div>
-              <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Used</p>
-                <p className="mt-1 text-2xl font-bold text-blue-900">{currentPackage?.sessions_used ?? 0}</p>
-              </div>
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Left</p>
-                <p className="mt-1 text-2xl font-bold text-emerald-900">{currentPackage?.sessions_remaining ?? 0}</p>
+            <section className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Selected therapy</p>
+                  <h3 className="mt-0.5 truncate text-base font-bold text-slate-900">{currentPackage?.package_name ?? 'No active therapy selected'}</h3>
+                  <p className="text-xs text-slate-500">{currentPackage ? getPackageKindLabel(currentPackage) : 'Choose an available therapy above.'}</p>
+                </div>
+                <div className="flex shrink-0 gap-2 text-center text-xs">
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+                    <p className="font-bold uppercase tracking-wide text-blue-700">Used</p>
+                    <p className="text-lg font-bold text-blue-900">{currentPackage?.sessions_used ?? 0}</p>
+                  </div>
+                  <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
+                    <p className="font-bold uppercase tracking-wide text-emerald-700">Left</p>
+                    <p className="text-lg font-bold text-emerald-900">{currentPackage ? getSessionsRemaining(currentPackage) : 0}</p>
+                  </div>
+                </div>
               </div>
             </section>
 
-            <section className="grid grid-cols-1 gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="rounded-xl border border-slate-100 bg-white p-4">
-                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <section className="grid grid-cols-1 gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="rounded-xl border border-slate-100 bg-white p-3">
+                <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h3 className="flex items-center gap-2 font-bold text-slate-900">
                       <CalendarDays className="h-5 w-5 text-[var(--primary)]" />
@@ -609,13 +643,13 @@ export default function TherapistPage() {
                 </div>
               </div>
 
-              <div className="space-y-5">
+              <div className="space-y-3">
                 <section className="rounded-xl border border-slate-100 bg-white">
-                  <div className="border-b border-slate-100 p-4">
+                  <div className="border-b border-slate-100 p-3">
                     <h3 className="font-bold text-slate-900">Package history</h3>
                     <p className="mt-1 text-sm text-slate-500">Multi-session therapies only. Single-time sessions stay below.</p>
                   </div>
-                  <div className="max-h-72 space-y-3 overflow-y-auto p-4">
+                  <div className="max-h-72 space-y-2 overflow-y-auto p-3">
                     {multiSessionRecords.length === 0 ? (
                       <p className="text-sm text-slate-500">No multi-session packages recorded.</p>
                     ) : (
@@ -630,8 +664,8 @@ export default function TherapistPage() {
                                 {getPackageKindLabel(historyItem)} | Started {formatDate(historyItem.created_at)}
                               </p>
                             </div>
-                            <span className={cn('rounded-full border px-2 py-0.5 text-xs font-bold capitalize', getStatusClass(historyItem.status))}>
-                              {historyItem.sessions_remaining <= 0 ? 'done' : historyItem.status}
+                            <span className={cn('rounded-full border px-2 py-0.5 text-xs font-bold capitalize', getTherapyStatusClass(historyItem))}>
+                              {getTherapyStatusLabel(historyItem)}
                             </span>
                           </div>
                           <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
@@ -655,11 +689,11 @@ export default function TherapistPage() {
                 </section>
 
                 <section className="rounded-xl border border-slate-100 bg-white">
-                  <div className="border-b border-slate-100 p-4">
+                  <div className="border-b border-slate-100 p-3">
                     <h3 className="font-bold text-slate-900">Single-time therapy sessions</h3>
                     <p className="mt-1 text-sm text-slate-500">One-session therapies appear here only, never duplicated above.</p>
                   </div>
-                  <div className="max-h-56 space-y-2 overflow-y-auto p-4">
+                  <div className="max-h-56 space-y-2 overflow-y-auto p-3">
                     {singleTimeRecords.length === 0 ? (
                       <p className="text-sm text-slate-500">No single-time therapy sessions recorded.</p>
                     ) : (
@@ -670,8 +704,8 @@ export default function TherapistPage() {
                               <p className="text-sm font-bold text-slate-900">{historyItem.package_name}</p>
                               <p className="text-xs text-slate-500">Created {formatDate(historyItem.created_at)}</p>
                             </div>
-                            <span className={cn('rounded-full border px-2 py-0.5 text-xs font-bold capitalize', getStatusClass(historyItem.status))}>
-                              {historyItem.sessions_remaining <= 0 ? 'done' : historyItem.status}
+                            <span className={cn('rounded-full border px-2 py-0.5 text-xs font-bold capitalize', getTherapyStatusClass(historyItem))}>
+                              {getTherapyStatusLabel(historyItem)}
                             </span>
                           </div>
                           <div className="mt-2 flex flex-wrap gap-1.5">

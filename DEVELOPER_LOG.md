@@ -390,3 +390,18 @@ This file records major project changes, database migrations, verification steps
 - `npm run typecheck` passed.
 - `npm run lint` passed.
 - `npm run build` passed.
+
+## 2026-07-13 - Therapist therapy-record modal cleanup
+
+### UI
+- Updated the therapist therapy-record modal so the top Choose therapy selector only offers active therapies with sessions remaining.
+- Exhausted, completed, or cancelled therapies remain visible in Package history / Single-time therapy history, but are no longer selectable for marking.
+- Reused the existing computed `sessions_remaining` value for selector filtering and Done badges.
+- Made the modal header area more compact with smaller patient/selector cards, horizontal scrolling therapy chips, and a single selected-therapy summary row.
+
+### Backend Safety
+- Confirmed `mark_session_atomic` already rejects exhausted packages with `PACKAGE_SESSIONS_EXHAUSTED` before the daily-limit/admin-bypass check.
+- Verified a direct RPC call against an active exhausted `Single-time therapy (1/1)` package is rejected with `PACKAGE_SESSIONS_EXHAUSTED`.
+
+### Verification
+- `npm run check` passed.
