@@ -317,6 +317,7 @@ export interface TherapistPackageHistoryItem {
   sessions_used: number
   sessions_remaining: number
   last_session_at: string | null
+  today_sessions: number
   sessions: TherapistSessionRecord[]
 }
 
@@ -348,6 +349,42 @@ export interface TherapistActivePackage {
   last_session_at: string | null
   today_sessions: number
   package_history: TherapistPackageHistoryItem[]
+}
+
+export type TherapistSessionTab = 'active' | 'completed' | 'single'
+
+export interface TherapistPatientCard {
+  patient_id: string
+  patient_name: string
+  patient_phone: string | null
+  latest_activity_at: string
+  active_packages: TherapistPackageHistoryItem[]
+  completed_packages: TherapistPackageHistoryItem[]
+  single_time_packages: TherapistPackageHistoryItem[]
+  package_history: TherapistPackageHistoryItem[]
+}
+
+export interface TherapistPatientsPagination {
+  page: number
+  pageSize: number
+  totalItems: number
+  totalPages: number
+}
+
+export interface TherapistPatientsStats {
+  activePatients: number
+  activePackages: number
+  sessionsRemaining: number
+  completedPatients: number
+  completedPackages: number
+  singleTimePatients: number
+  singleTimePackages: number
+}
+
+export interface TherapistPatientsResult {
+  patients: TherapistPatientCard[]
+  pagination: TherapistPatientsPagination
+  stats: TherapistPatientsStats
 }
 
 export interface PatientPortalPayment {

@@ -10,6 +10,28 @@ const markSessionSchema = z.object({
   patient_package_id: z.string().uuid('Invalid package id'),
 })
 
+type TherapistTab = 'active' | 'completed' | 'single'
+type PackageStatus = 'active' | 'completed' | 'cancelled'
+
+interface PackageRow {
+  id: string
+  patient_id: string
+  package_name: string
+  total_sessions: number
+  status: PackageStatus
+  created_at: string
+  patient?: { id: string; full_name: string; phone: string | null } | Array<{ id: string; full_name: string; phone: string | null }> | null
+}
+
+interface SessionRow {
+  id: string
+  patient_package_id: string
+  session_date: string
+  marked_at: string
+  is_voided: boolean
+  notes: string | null
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return NextResponse.json(body, {
     status,
@@ -41,49 +63,159 @@ async function requireTherapistAccess() {
   return { userClient, userId: user.id, response: null }
 }
 
-export async function GET() {
+function getListParams(request: NextRequest) {
+  const url = new URL(request.url)
+  const tabParam = url.searchParams.get('tab')
+  const tab: TherapistTab = tabParam === 'completed' || tabParam === 'single' ? tabParam : 'active'
+  const search = (url.searchParams.get('search') ?? '').trim().slice(0, 80)
+  const parsedPage = Number(url.searchParams.get('page') ?? '1')
+  const parsedPageSize = Number(url.searchParams.get('pageSize') ?? '12')
+  const page = Number.isFinite(parsedPage) ? Math.max(Math.trunc(parsedPage), 1) : 1
+  const pageSize = Number.isFinite(parsedPageSize)
+    ? Math.min(Math.max(Math.trunc(parsedPageSize), 6), 48)
+    : 12
+
+  return { tab, search, page, pageSize }
+}
+
+function getPatient(row: PackageRow) {
+  return Array.isArray(row.patient) ? row.patient[0] : row.patient
+}
+
+function matchesSearch(row: PackageRow, search: string) {
+  if (!search) return true
+  const patient = getPatient(row)
+  const haystack = [
+    patient?.full_name,
+    patient?.phone,
+    row.package_name,
+  ].filter(Boolean).join(' ').toLowerCase()
+
+  return haystack.includes(search.toLowerCase())
+}
+
+function buildSessionCounts(sessions: SessionRow[]) {
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const sessionsByPackage = new Map<string, {
+    used: number
+    last: string | null
+    today: number
+    sessions: SessionRow[]
+  }>()
+
+  for (const session of sessions) {
+    const current = sessionsByPackage.get(session.patient_package_id) ?? { used: 0, last: null, today: 0, sessions: [] }
+    current.sessions.push(session)
+    if (!session.is_voided) {
+      current.used += 1
+      if (session.session_date === todayKey) current.today += 1
+      if (!current.last || session.marked_at > current.last) current.last = session.marked_at
+    }
+    sessionsByPackage.set(session.patient_package_id, current)
+  }
+
+  return sessionsByPackage
+}
+
+function enrichPackage(row: PackageRow, sessionsByPackage: ReturnType<typeof buildSessionCounts>) {
+  const counts = sessionsByPackage.get(row.id) ?? { used: 0, last: null, today: 0, sessions: [] }
+  return {
+    id: row.id,
+    patient_id: row.patient_id,
+    patient: getPatient(row),
+    package_name: row.package_name,
+    total_sessions: row.total_sessions,
+    status: row.status,
+    created_at: row.created_at,
+    sessions_used: counts.used,
+    sessions_remaining: Math.max(row.total_sessions - counts.used, 0),
+    last_session_at: counts.last,
+    today_sessions: counts.today,
+    sessions: counts.sessions,
+  }
+}
+
+function belongsToTab(packageRow: ReturnType<typeof enrichPackage>, tab: TherapistTab) {
+  if (tab === 'single') return packageRow.total_sessions === 1
+  if (tab === 'completed') {
+    return packageRow.total_sessions !== 1 && (packageRow.status !== 'active' || packageRow.sessions_remaining <= 0)
+  }
+  return packageRow.status === 'active' && packageRow.sessions_remaining > 0
+}
+
+export async function GET(request: NextRequest) {
   try {
     const auth = await requireTherapistAccess()
     if (auth.response) return auth.response
+    const { tab, search, page, pageSize } = getListParams(request)
 
     const admin = createAdminClient()
     const { data: packages, error: packagesError } = await admin
       .from('patient_packages')
       .select('id, patient_id, package_name, total_sessions, status, created_at, patient:patients(id, full_name, phone)')
-      .eq('status', 'active')
       .order('created_at', { ascending: false })
 
     if (packagesError) throw packagesError
 
-    const packageRows = (packages ?? []) as Array<{
-      id: string
-      patient_id: string
-      package_name: string
-      total_sessions: number
-      status: 'active' | 'completed' | 'cancelled'
-      created_at: string
-      patient?: { id: string; full_name: string; phone: string | null } | null
-    }>
-    const patientIds = Array.from(new Set(packageRows.map((row) => row.patient_id)))
+    const packageRows = ((packages ?? []) as PackageRow[]).filter((row) => matchesSearch(row, search))
+    const packageIds = packageRows.map((row) => row.id)
 
-    const { data: packageHistory, error: packageHistoryError } = patientIds.length > 0
+    const { data: summarySessions, error: summarySessionsError } = packageIds.length > 0
+      ? await admin
+        .from('package_sessions')
+        .select('id, patient_package_id, session_date, marked_at, is_voided, notes')
+        .in('patient_package_id', packageIds)
+        .order('marked_at', { ascending: true })
+      : { data: [], error: null }
+
+    if (summarySessionsError) throw summarySessionsError
+
+    const summaryCounts = buildSessionCounts((summarySessions ?? []) as SessionRow[])
+    const enrichedPackages = packageRows.map((row) => enrichPackage(row, summaryCounts))
+    const activePackages = enrichedPackages.filter((row) => row.status === 'active' && row.sessions_remaining > 0)
+    const completedPackages = enrichedPackages.filter((row) => row.total_sessions !== 1 && (row.status !== 'active' || row.sessions_remaining <= 0))
+    const singleTimePackages = enrichedPackages.filter((row) => row.total_sessions === 1)
+    const tabPackages = enrichedPackages.filter((row) => belongsToTab(row, tab))
+
+    const groupedPatients = new Map<string, {
+      patient_id: string
+      patient_name: string
+      patient_phone: string | null
+      latest_activity_at: string
+    }>()
+
+    for (const row of tabPackages) {
+      const patient = row.patient
+      const latest = row.last_session_at ?? row.created_at
+      const existing = groupedPatients.get(row.patient_id)
+      groupedPatients.set(row.patient_id, {
+        patient_id: row.patient_id,
+        patient_name: patient?.full_name ?? 'Unknown patient',
+        patient_phone: patient?.phone ?? null,
+        latest_activity_at: existing && existing.latest_activity_at > latest ? existing.latest_activity_at : latest,
+      })
+    }
+
+    const groupedPatientRows = Array.from(groupedPatients.values())
+      .sort((a, b) => b.latest_activity_at.localeCompare(a.latest_activity_at))
+    const totalPatients = groupedPatientRows.length
+    const totalPages = Math.max(Math.ceil(totalPatients / pageSize), 1)
+    const safePage = Math.min(page, totalPages)
+    const offset = (safePage - 1) * pageSize
+    const pagedPatients = groupedPatientRows.slice(offset, offset + pageSize)
+    const pagedPatientIds = pagedPatients.map((patient) => patient.patient_id)
+
+    const { data: packageHistory, error: packageHistoryError } = pagedPatientIds.length > 0
       ? await admin
         .from('patient_packages')
         .select('id, patient_id, package_name, total_sessions, status, created_at')
-        .in('patient_id', patientIds)
+        .in('patient_id', pagedPatientIds)
         .order('created_at', { ascending: true })
       : { data: [], error: null }
 
     if (packageHistoryError) throw packageHistoryError
 
-    const historyRows = (packageHistory ?? []) as Array<{
-      id: string
-      patient_id: string
-      package_name: string
-      total_sessions: number
-      status: 'active' | 'completed' | 'cancelled'
-      created_at: string
-    }>
+    const historyRows = (packageHistory ?? []) as PackageRow[]
     const historyPackageIds = historyRows.map((row) => row.id)
 
     const { data: sessions, error: sessionsError } = historyPackageIds.length > 0
@@ -96,38 +228,7 @@ export async function GET() {
 
     if (sessionsError) throw sessionsError
 
-    const todayKey = new Date().toISOString().slice(0, 10)
-    const sessionsByPackage = new Map<string, {
-      used: number
-      last: string | null
-      today: number
-      sessions: Array<{
-        id: string
-        patient_package_id: string
-        session_date: string
-        marked_at: string
-        is_voided: boolean
-        notes: string | null
-      }>
-    }>()
-
-    for (const session of (sessions ?? []) as Array<{
-      id: string
-      patient_package_id: string
-      session_date: string
-      marked_at: string
-      is_voided: boolean
-      notes: string | null
-    }>) {
-      const current = sessionsByPackage.get(session.patient_package_id) ?? { used: 0, last: null, today: 0, sessions: [] }
-      current.sessions.push(session)
-      if (!session.is_voided) {
-        current.used += 1
-        if (session.session_date === todayKey) current.today += 1
-        if (!current.last || session.marked_at > current.last) current.last = session.marked_at
-      }
-      sessionsByPackage.set(session.patient_package_id, current)
-    }
+    const sessionsByPackage = buildSessionCounts((sessions ?? []) as SessionRow[])
 
     const historyByPatient = new Map<string, Array<{
       id: string
@@ -138,6 +239,7 @@ export async function GET() {
       sessions_used: number
       sessions_remaining: number
       last_session_at: string | null
+      today_sessions: number
       sessions: Array<{
         id: string
         patient_package_id: string
@@ -159,28 +261,38 @@ export async function GET() {
         sessions_used: counts.used,
         sessions_remaining: Math.max(row.total_sessions - counts.used, 0),
         last_session_at: counts.last,
+        today_sessions: counts.today,
         sessions: counts.sessions,
       }
       historyByPatient.set(row.patient_id, [...(historyByPatient.get(row.patient_id) ?? []), item])
     }
 
     return jsonResponse({
-      packages: packageRows.map((row) => {
-        const counts = sessionsByPackage.get(row.id) ?? { used: 0, last: null }
+      patients: pagedPatients.map((patient) => {
+        const packageHistory = historyByPatient.get(patient.patient_id) ?? []
         return {
-          patient_package_id: row.id,
-          patient_id: row.patient_id,
-          patient_name: row.patient?.full_name ?? 'Unknown patient',
-          patient_phone: row.patient?.phone ?? null,
-          package_name: row.package_name,
-          total_sessions: row.total_sessions,
-          sessions_used: counts.used,
-          sessions_remaining: Math.max(row.total_sessions - counts.used, 0),
-          last_session_at: counts.last,
-          today_sessions: 'today' in counts ? counts.today : 0,
-          package_history: historyByPatient.get(row.patient_id) ?? [],
+          ...patient,
+          active_packages: packageHistory.filter((row) => row.status === 'active' && row.sessions_remaining > 0),
+          completed_packages: packageHistory.filter((row) => row.total_sessions !== 1 && (row.status !== 'active' || row.sessions_remaining <= 0)),
+          single_time_packages: packageHistory.filter((row) => row.total_sessions === 1),
+          package_history: packageHistory,
         }
       }),
+      pagination: {
+        page: safePage,
+        pageSize,
+        totalItems: totalPatients,
+        totalPages,
+      },
+      stats: {
+        activePatients: new Set(activePackages.map((row) => row.patient_id)).size,
+        activePackages: activePackages.length,
+        sessionsRemaining: activePackages.reduce((sum, row) => sum + row.sessions_remaining, 0),
+        completedPatients: new Set(completedPackages.map((row) => row.patient_id)).size,
+        completedPackages: completedPackages.length,
+        singleTimePatients: new Set(singleTimePackages.map((row) => row.patient_id)).size,
+        singleTimePackages: singleTimePackages.length,
+      },
     })
   } catch (error) {
     console.error('Therapist package list failed', error instanceof Error ? error.message : 'Unknown error')

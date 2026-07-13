@@ -28,6 +28,8 @@ import type {
   MarkSessionResult,
   PatientPortalOverview,
   TherapistActivePackage,
+  TherapistPatientsResult,
+  TherapistSessionTab,
   FollowUpOutcome,
   FollowUpStatus,
   FollowUpTask,
@@ -591,7 +593,7 @@ export async function closeCashShift(payload: CloseCashShiftPayload): Promise<Ca
 }
 
 export async function getTherapistActivePackages(): Promise<TherapistActivePackage[]> {
-  const response = await fetch('/api/therapist/sessions', {
+  const response = await fetch('/api/therapist/sessions?tab=active&page=1&pageSize=48', {
     cache: 'no-store',
     headers: { 'Content-Type': 'application/json' },
   })
@@ -601,7 +603,46 @@ export async function getTherapistActivePackages(): Promise<TherapistActivePacka
     throw new Error(result.error || 'Unable to load therapy packages')
   }
 
-  return result.packages as TherapistActivePackage[]
+  const typedResult = result as TherapistPatientsResult
+  return typedResult.patients.flatMap((patient) => patient.active_packages.map((patientPackage) => ({
+    patient_package_id: patientPackage.id,
+    patient_id: patient.patient_id,
+    patient_name: patient.patient_name,
+    patient_phone: patient.patient_phone,
+    package_name: patientPackage.package_name,
+    total_sessions: patientPackage.total_sessions,
+    sessions_used: patientPackage.sessions_used,
+    sessions_remaining: patientPackage.sessions_remaining,
+    last_session_at: patientPackage.last_session_at,
+    today_sessions: patientPackage.today_sessions,
+    package_history: patient.package_history,
+  })))
+}
+
+export async function getTherapistPatients(filters: {
+  tab: TherapistSessionTab
+  search?: string
+  page?: number
+  pageSize?: number
+}): Promise<TherapistPatientsResult> {
+  const params = new URLSearchParams({
+    tab: filters.tab,
+    page: String(filters.page ?? 1),
+    pageSize: String(filters.pageSize ?? 12),
+  })
+  if (filters.search?.trim()) params.set('search', filters.search.trim())
+
+  const response = await fetch(`/api/therapist/sessions?${params.toString()}`, {
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Unable to load therapy patients')
+  }
+
+  return result as TherapistPatientsResult
 }
 
 export async function markSessionComplete(patientPackageId: string): Promise<MarkSessionResult> {

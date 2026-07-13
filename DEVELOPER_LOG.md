@@ -45,8 +45,7 @@ This file records major project changes, database migrations, verification steps
 - `npm run typecheck` passed.
 - `npm run lint` passed.
 - `npm run build` passed.
-- `npm run lint` passed.
-- `npm run build` passed.
+
 - `supabase db push --linked --dry-run` showed only the ledger migration before applying.
 
 ### Notes
@@ -92,6 +91,7 @@ This file records major project changes, database migrations, verification steps
 - `npm run typecheck` passed.
 - `npm run lint` passed.
 - `npm run build` passed.
+
 - `supabase db push --linked --dry-run` showed only the WhatsApp notification migration before applying.
 - `supabase db query --linked` confirmed `public.whatsapp_notifications` exists.
 - `.env.local` remains gitignored; `.env.example` contains placeholder values only.
@@ -367,3 +367,26 @@ This file records major project changes, database migrations, verification steps
 
 ### Verification
 - `npm run typecheck` passed.
+- `npm run lint` passed.
+- `npm run build` passed.
+
+## 2026-07-13 - Therapist dashboard patient grouping and pagination
+
+### Backend
+- Changed `GET /api/therapist/sessions` to accept `tab`, `search`, `page`, and `pageSize` query params.
+- The endpoint now groups therapy data by patient and returns paginated patient cards instead of one card per package.
+- Added active/completed/single-time tab filtering server-side.
+- The browser receives full package/session history only for patients on the current page.
+
+### UI
+- Reworked `/therapist` into a patient-first dashboard with one card per patient per tab.
+- Added tabs for Active therapy, Completed therapy, and Single-time sessions.
+- Added search by patient, phone, or therapy/package name.
+- Added pagination controls.
+- Kept detailed therapy history, calendar marks, and single-time session history inside the patient record modal.
+- If a patient has multiple active therapies, the card opens the patient record so staff can choose which therapy to mark.
+
+### Verification
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `npm run build` passed.

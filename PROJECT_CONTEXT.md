@@ -525,10 +525,13 @@ Admin-focused settings page. Current sections include:
 
 ### `/therapist`
 
-Therapist/admin workbench for active packages.
+Therapist/admin workbench for patient therapy sessions.
 
-- Lists active packages with patient phone, total sessions, sessions used, and sessions remaining.
+- Lists therapy patients as one card per patient, with tabs for active therapy, completed therapy, and single-time sessions.
+- Supports search and pagination via `GET /api/therapist/sessions?tab=<active|completed|single>&search=<term>&page=<n>&pageSize=<n>`.
+- Patient cards stay compact; the modal shows full package history, active therapies, single-time therapy records, and the session calendar.
 - Marks delivered sessions through `mark_session_atomic`.
+- If one patient has multiple active therapies, staff choose the therapy from the patient record before marking.
 - Sends/logs session reminder WhatsApp attempts.
 
 ### `/follow-up`
