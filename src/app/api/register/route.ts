@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
       if (visitError) throw visitError
 
       const portalLink = await getOrCreatePatientPortalLink(visitRow.patient_id)
-      portalUrl = buildPatientPortalUrl(portalLink.token, request.nextUrl.origin)
+      portalUrl = buildPatientPortalUrl(portalLink.token)
 
       await sendWhatsAppNotification({
         patientId: visitRow.patient_id,
@@ -221,6 +221,7 @@ export async function POST(request: NextRequest) {
         bodyParameters: [
           `Token ${result.token_number} | ${input.consultation_date} ${input.consultation_time}`,
         ],
+        buttonUrlParameter: portalLink.token,
       })
     } catch (whatsappError) {
       console.error('Registration WhatsApp notification failed', whatsappError instanceof Error ? whatsappError.message : 'Unknown error')

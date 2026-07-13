@@ -12,6 +12,7 @@ interface SendWhatsAppNotificationInput {
   templateName: string | undefined
   payload: Record<string, unknown>
   bodyParameters: Array<string | number | null | undefined>
+  buttonUrlParameter?: string | number | null | undefined
   languageCode?: string
 }
 
@@ -53,17 +54,37 @@ function buildTemplateMessage(
   to: string,
   templateName: string,
   languageCode: string,
-  bodyParameters: Array<string | number | null | undefined>
+  bodyParameters: Array<string | number | null | undefined>,
+  buttonUrlParameter?: string | number | null | undefined
 ) {
-  const components = bodyParameters.length > 0
-    ? [{
+  const components: Array<{
+    type: string
+    sub_type?: string
+    index?: string
+    parameters: Array<{ type: 'text'; text: string }>
+  }> = []
+
+  if (bodyParameters.length > 0) {
+    components.push({
       type: 'body',
       parameters: bodyParameters.map((value) => ({
         type: 'text',
         text: String(value ?? ''),
       })),
-    }]
-    : undefined
+    })
+  }
+
+  if (buttonUrlParameter !== null && buttonUrlParameter !== undefined && String(buttonUrlParameter).trim()) {
+    components.push({
+      type: 'button',
+      sub_type: 'url',
+      index: '0',
+      parameters: [{
+        type: 'text',
+        text: String(buttonUrlParameter),
+      }],
+    })
+  }
 
   return {
     messaging_product: 'whatsapp',
@@ -72,7 +93,7 @@ function buildTemplateMessage(
     template: {
       name: templateName,
       language: { code: languageCode },
-      ...(components ? { components } : {}),
+      ...(components.length > 0 ? { components } : {}),
     },
   }
 }
@@ -81,7 +102,8 @@ async function sendMetaTemplateMessage(
   to: string,
   templateName: string,
   languageCode: string,
-  bodyParameters: Array<string | number | null | undefined>
+  bodyParameters: Array<string | number | null | undefined>,
+  buttonUrlParameter?: string | number | null | undefined
 ) {
   const accessToken = process.env.META_WHATSAPP_ACCESS_TOKEN
   const phoneNumberId = process.env.META_WHATSAPP_PHONE_NUMBER_ID
@@ -96,7 +118,7 @@ async function sendMetaTemplateMessage(
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(buildTemplateMessage(to, templateName, languageCode, bodyParameters)),
+    body: JSON.stringify(buildTemplateMessage(to, templateName, languageCode, bodyParameters, buttonUrlParameter)),
   })
 
   const body = await response.json().catch(() => ({})) as MetaWhatsAppResponse
@@ -121,6 +143,7 @@ export async function sendWhatsAppNotification(
   const payload = {
     ...input.payload,
     whatsapp_template_name: input.templateName ?? null,
+    whatsapp_button_url_parameter: input.buttonUrlParameter ?? null,
   }
 
   const insertPayload: WhatsAppNotificationInsert = {
@@ -168,7 +191,8 @@ export async function sendWhatsAppNotification(
       to,
       input.templateName,
       getTemplateLanguage(input.languageCode),
-      input.bodyParameters
+      input.bodyParameters,
+      input.buttonUrlParameter
     )
 
     await admin

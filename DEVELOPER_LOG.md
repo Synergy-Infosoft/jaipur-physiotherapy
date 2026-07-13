@@ -45,6 +45,8 @@ This file records major project changes, database migrations, verification steps
 - `npm run typecheck` passed.
 - `npm run lint` passed.
 - `npm run build` passed.
+- `npm run lint` passed.
+- `npm run build` passed.
 - `supabase db push --linked --dry-run` showed only the ledger migration before applying.
 
 ### Notes
@@ -349,3 +351,19 @@ This file records major project changes, database migrations, verification steps
 - `npm run typecheck` passed.
 - `npm run lint` passed.
 - `npm run build` passed and included `/whatsapp-logs` plus `/api/admin/whatsapp-logs`.
+
+## 2026-07-13 - WhatsApp portal button and live URL fix
+
+### Backend
+- Updated `buildPatientPortalUrl(...)` to prefer `NEXT_PUBLIC_APP_URL`, then `APP_ALLOWED_ORIGINS`, before request-origin fallback and to ignore unusable `0.0.0.0` origins.
+- Added optional Meta template URL-button parameter support to `src/lib/whatsapp.ts`.
+- Updated registration and package-created WhatsApp sends to pass the portal token as the URL-button parameter.
+- Updated the package-created and portal-link routes to build portal URLs from the configured public app URL instead of `request.nextUrl.origin`.
+
+### Meta Templates
+- Edited the simple-name `en_GB` templates to include `Jaipur Physiotherapy Clinic`, a Namaste greeting, cleaner formatting, and Unicode-safe emojis.
+- Added an `Open Portal` URL button to `registration_confirmation`, `package_created`, and `portal_link`.
+- Meta moved the edited templates back to `PENDING` review; sends may fail until Meta approves the edited versions.
+
+### Verification
+- `npm run typecheck` passed.

@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
     if (!packageRow?.id) throw new Error('Package RPC did not return a package')
 
     const portalLink = await getOrCreatePatientPortalLink(packageRow.patient_id)
-    const portalUrl = buildPatientPortalUrl(portalLink.token, request.nextUrl.origin)
+    const portalUrl = buildPatientPortalUrl(portalLink.token)
 
     const whatsapp = await sendWhatsAppNotification({
       patientId: packageRow.patient_id,
@@ -176,8 +176,8 @@ export async function POST(request: NextRequest) {
         packageRow.total_sessions,
         packageRow.quoted_amount,
         packageRow.quoted_amount,
-        portalUrl,
       ],
+      buttonUrlParameter: portalLink.token,
     })
 
     const portalWhatsapp = await sendWhatsAppNotification({
@@ -191,6 +191,7 @@ export async function POST(request: NextRequest) {
         portal_url: portalUrl,
       },
       bodyParameters: [portalUrl],
+      buttonUrlParameter: portalLink.token,
     })
 
     return jsonResponse({ package: packageRow, portal_url: portalUrl, whatsapp, portal_whatsapp: portalWhatsapp }, 201)

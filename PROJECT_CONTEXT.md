@@ -216,6 +216,8 @@ Current setup expectation:
   - `session_reminder`
 - `WHATSAPP_TEMPLATE_LANGUAGE` is currently `en_GB` because English (`en`) names were temporarily locked in Meta's deletion state and English (US) had existing approved variants. The English (UK) templates use simple names with correctly stored emojis.
 - Registration confirmation sends one combined template parameter (`Token <number> | <date time>`) to keep the template approval-friendly.
+- Portal-related WhatsApp templates (`registration_confirmation`, `package_created`, and `portal_link`) use a Meta URL button labeled `Open Portal`. The app sends the portal token as the button URL parameter and stores the full portal URL in the notification payload.
+- Edited Meta templates can move back to `PENDING` review. Sends may fail until Meta approves the edited template version; check `/whatsapp-logs` for the exact Meta error.
 - If Meta approves different template names, update the host environment variables instead of hard-coding names.
 - Real tokens must only be stored in `.env.local`, host environment variables, or Supabase secrets. They must never be committed.
 
@@ -278,7 +280,7 @@ Meaning:
   - Canonical app origin.
   - Must be changed from localhost when live.
   - Used for QR links, patient portal magic links, WhatsApp/portal URLs, and origin validation.
-  - Important: if this is missing or wrong, portal links may be generated with a local origin such as `0.0.0.0:3000`.
+  - Important: if this is missing or wrong, portal links may be generated with a local origin such as `0.0.0.0:3000`. `buildPatientPortalUrl(...)` now prefers `NEXT_PUBLIC_APP_URL`, then `APP_ALLOWED_ORIGINS`, before any request origin to avoid unusable mobile links.
 
 - `REGISTRATION_RATE_LIMIT_SALT`
   - Server-only salt used to hash client IPs for public registration rate limiting.

@@ -3,10 +3,36 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { PatientPortalLink } from '@/types'
 
+function getConfiguredBaseUrl(baseUrl?: string | null) {
+  const allowedOrigins = process.env.APP_ALLOWED_ORIGINS
+    ?.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean) ?? []
+
+  return [
+    process.env.NEXT_PUBLIC_APP_URL,
+    ...allowedOrigins,
+    baseUrl,
+    'http://localhost:3000',
+  ]
+}
+
 function normalizeBaseUrl(baseUrl?: string | null) {
-  const candidate = baseUrl || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  for (const candidate of getConfiguredBaseUrl(baseUrl)) {
+    if (!candidate) continue
+
+    try {
+      const url = new URL(candidate)
+      if (!['http:', 'https:'].includes(url.protocol)) continue
+      if (url.hostname === '0.0.0.0' || url.hostname === '::' || url.hostname === '[::]') continue
+      return url.origin
+    } catch {
+      continue
+    }
+  }
+
   try {
-    return new URL(candidate).origin
+    return new URL('http://localhost:3000').origin
   } catch {
     return 'http://localhost:3000'
   }
