@@ -429,3 +429,18 @@ This file records major project changes, database migrations, verification steps
 
 ### Verification
 - `npm run check` passed.
+
+## 2026-07-15 - Cash shift reconciliation function fix
+
+### Bug
+- Closing a cash shift failed with the generic UI message `Unable to close cash shift`.
+- Root cause was an ambiguous `created_at` reference inside `close_cash_shift_atomic`; the function returns a `created_at` column, so Postgres could not tell whether unqualified `created_at` meant the output variable or `payment_transactions.created_at`.
+
+### Fix
+- Added migration `supabase/migrations/20260715185000_fix_cash_shift_reconciliation_function.sql`.
+- Qualified payment and reconciliation table columns inside `close_cash_shift_atomic`.
+- Captured the inserted reconciliation id directly instead of selecting the latest row.
+
+### Verification
+- Applied the migration to the linked Supabase project with `npx supabase db push --linked --yes`.
+- Rolled-back test call confirmed the function now returns expected cash, counted cash, and variance without saving a debug row.
