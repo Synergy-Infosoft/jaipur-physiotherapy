@@ -37,6 +37,24 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Unknown WhatsApp send error'
 }
 
+function normalizeWhatsAppApiError(message: string) {
+  if (/131030|Recipient phone number not in allowed list/i.test(message)) {
+    return [
+      'Patient phone number is not in the Meta WhatsApp test allowed list.',
+      'Add this patient number in WhatsApp Manager API setup, or use the live approved WhatsApp number.',
+    ].join(' ')
+  }
+
+  if (/132001|Template name does not exist in the translation/i.test(message)) {
+    return [
+      'WhatsApp template is not approved for the configured language.',
+      'Check the template name and language in Meta WhatsApp Manager.',
+    ].join(' ')
+  }
+
+  return message
+}
+
 function formatPhoneForWhatsApp(phone: string | null | undefined) {
   const digits = String(phone ?? '').replace(/\D/g, '')
   if (!digits) return null
@@ -123,11 +141,12 @@ async function sendMetaTemplateMessage(
 
   const body = await response.json().catch(() => ({})) as MetaWhatsAppResponse
   if (!response.ok) {
-    throw new Error(
+    const rawMessage =
       body.error?.error_user_msg ||
       body.error?.message ||
       `WhatsApp API request failed with ${response.status}`
-    )
+
+    throw new Error(normalizeWhatsAppApiError(rawMessage))
   }
 
   return {

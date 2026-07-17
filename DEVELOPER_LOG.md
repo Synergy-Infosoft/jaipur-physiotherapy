@@ -444,3 +444,18 @@ This file records major project changes, database migrations, verification steps
 ### Verification
 - Applied the migration to the linked Supabase project with `npx supabase db push --linked --yes`.
 - Rolled-back test call confirmed the function now returns expected cash, counted cash, and variance without saving a debug row.
+
+## 2026-07-17 - Follow-up WhatsApp template submission and clearer test-number errors
+
+### Meta Template
+- Submitted `follow_up_reminder` to Meta WhatsApp Manager for language `en_GB`.
+- Template status returned by Meta: `PENDING`.
+- Template body uses the existing app parameter order: patient name, package name, sessions remaining.
+
+### App Error Handling
+- Updated `src/lib/whatsapp.ts` to translate Meta error `#131030 Recipient phone number not in allowed list` into a plain explanation for staff.
+- Updated template-missing error `#132001` into a clearer language/template approval message.
+
+### Notes
+- With a Meta test WhatsApp account, sends only work for phone numbers added to the allowed recipient list in WhatsApp Manager.
+- Once the clinic switches to a live approved WhatsApp number, this test-recipient restriction no longer applies in the same way.
